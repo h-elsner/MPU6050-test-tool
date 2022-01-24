@@ -1,0 +1,342 @@
+object Form1: TForm1
+  Left = 972
+  Height = 522
+  Top = 71
+  Width = 687
+  Caption = 'Form1'
+  ClientHeight = 522
+  ClientWidth = 687
+  Constraints.MinHeight = 360
+  Constraints.MinWidth = 680
+  OnCreate = FormCreate
+  Position = poDefaultPosOnly
+  ShowHint = True
+  LCLVersion = '2.0.12.0'
+  object btnRead: TButton
+    Left = 16
+    Height = 25
+    Hint = 'Read whole register set'
+    Top = 16
+    Width = 112
+    Caption = 'Read register'
+    OnClick = btnReadClick
+    TabOrder = 0
+  end
+  object btnWrPrev: TButton
+    Left = 152
+    Height = 25
+    Hint = 'Write back the decimal values in the table'
+    Top = 16
+    Width = 112
+    Caption = 'Write table'
+    OnClick = btnWrPrevClick
+    TabOrder = 3
+  end
+  object btnSave: TButton
+    Left = 424
+    Height = 25
+    Hint = 'Save table to CSV file'
+    Top = 16
+    Width = 112
+    Anchors = [akTop, akRight]
+    Caption = 'Save'
+    OnClick = btnSaveClick
+    TabOrder = 4
+  end
+  object btnRdVal: TButton
+    Left = 16
+    Height = 25
+    Hint = 'Cyclic read Acceleration, Temperature and Gyro'
+    Top = 48
+    Width = 112
+    Caption = 'Read values'
+    OnClick = btnRdValClick
+    TabOrder = 1
+  end
+  object btnStop: TButton
+    Left = 152
+    Height = 25
+    Hint = 'Stop reading values'
+    Top = 48
+    Width = 112
+    Caption = 'Stop reading'
+    OnClick = btnStopClick
+    TabOrder = 2
+  end
+  object btnClose: TButton
+    Left = 560
+    Height = 25
+    Hint = 'Close program'
+    Top = 16
+    Width = 112
+    Anchors = [akTop, akRight]
+    Caption = 'Quit'
+    OnClick = btnCloseClick
+    TabOrder = 5
+  end
+  object lblAddr: TLabel
+    Left = 288
+    Height = 20
+    Top = 53
+    Width = 92
+    Caption = 'MPU address:'
+    ParentColor = False
+  end
+  object lblMPU: TLabel
+    Left = 384
+    Height = 20
+    Hint = 'Address from register "Who am I"'
+    Top = 53
+    Width = 32
+    Caption = 'MPU'
+    ParentColor = False
+  end
+  object PageControl: TPageControl
+    Left = 0
+    Height = 434
+    Top = 88
+    Width = 687
+    ActivePage = tsTable
+    Anchors = [akTop, akLeft, akRight, akBottom]
+    TabIndex = 0
+    TabOrder = 6
+    object tsTable: TTabSheet
+      Caption = 'Table'
+      ClientHeight = 388
+      ClientWidth = 677
+      object gridReg: TStringGrid
+        Left = 0
+        Height = 388
+        Top = 0
+        Width = 677
+        Align = alClient
+        ColCount = 7
+        Flat = True
+        Options = [goFixedVertLine, goFixedHorzLine, goVertLine, goHorzLine, goRangeSelect, goColSizing, goEditing, goSmoothScroll]
+        RowCount = 83
+        ScrollBars = ssAutoVertical
+        TabOrder = 0
+        OnPrepareCanvas = gridRegPrepareCanvas
+        ColWidths = (
+          190
+          93
+          89
+          3
+          118
+          77
+          76
+        )
+      end
+    end
+    object tsChartA: TTabSheet
+      Caption = 'Chart Accel'
+      ClientHeight = 388
+      ClientWidth = 677
+      object chAcc: TChart
+        Left = 0
+        Height = 388
+        Top = 0
+        Width = 677
+        AxisList = <        
+          item
+            Marks.LabelBrush.Style = bsClear
+            Minors = <>
+            Title.LabelFont.Orientation = 900
+            Title.Visible = True
+            Title.Caption = 'G-Force [g]'
+            Title.LabelBrush.Style = bsClear
+          end        
+          item
+            Alignment = calBottom
+            Marks.LabelBrush.Style = bsClear
+            Minors = <>
+            Title.Visible = True
+            Title.Caption = 'Samples'
+            Title.LabelBrush.Style = bsClear
+          end>
+        Foot.Brush.Color = clBtnFace
+        Foot.Font.Color = clBlue
+        Title.Brush.Color = clBtnFace
+        Title.Font.Color = clBlue
+        Title.Text.Strings = (
+          'Gyro'
+        )
+        Align = alClient
+        object chAccLineX: TLineSeries
+          LinePen.Color = clRed
+        end
+        object chAccLineY: TLineSeries
+          LinePen.Color = clLime
+        end
+        object chAccLineZ: TLineSeries
+          LinePen.Color = clBlue
+        end
+      end
+    end
+    object tsChartG: TTabSheet
+      Caption = 'Chart Gyro'
+      ClientHeight = 388
+      ClientWidth = 677
+      object chGyro: TChart
+        Left = 0
+        Height = 388
+        Top = 0
+        Width = 677
+        AxisList = <        
+          item
+            Marks.LabelBrush.Style = bsClear
+            Minors = <>
+            Title.LabelFont.Orientation = 900
+            Title.Visible = True
+            Title.Caption = 'Gyro [°/s]'
+            Title.LabelBrush.Style = bsClear
+          end        
+          item
+            Alignment = calBottom
+            Marks.LabelBrush.Style = bsClear
+            Minors = <>
+            Title.Visible = True
+            Title.Caption = 'Samples'
+            Title.LabelBrush.Style = bsClear
+          end>
+        Foot.Brush.Color = clBtnFace
+        Foot.Font.Color = clBlue
+        Title.Brush.Color = clBtnFace
+        Title.Font.Color = clBlue
+        Title.Text.Strings = (
+          'Gyro'
+        )
+        Align = alClient
+        object chGyroLineX: TLineSeries
+          LinePen.Color = clRed
+        end
+        object chGyroLineY: TLineSeries
+          LinePen.Color = clLime
+        end
+        object chGyroLineZ: TLineSeries
+          LinePen.Color = clBlue
+        end
+      end
+    end
+    object tsTools: TTabSheet
+      Caption = 'Tools'
+      ClientHeight = 388
+      ClientWidth = 677
+      object GroupBox1: TGroupBox
+        Left = 16
+        Height = 225
+        Top = 8
+        Width = 288
+        Caption = 'Overwrite register'
+        ClientHeight = 204
+        ClientWidth = 286
+        TabOrder = 0
+        object btnWrAdr: TButton
+          Left = 16
+          Height = 25
+          Hint = 'Write a single byte to a R/W register of the MPU'
+          Top = 168
+          Width = 112
+          Caption = 'Write byte'
+          OnClick = btnWrAdrClick
+          TabOrder = 3
+        end
+        object edAdr: TEdit
+          Left = 16
+          Height = 30
+          Hint = 'Enter valid register address between 13 and 116'
+          Top = 32
+          Width = 56
+          OnChange = edAdrChange
+          TabOrder = 1
+          TextHint = '13..116'
+        end
+        object btnWrZero: TButton
+          Left = 160
+          Height = 25
+          Hint = 'Write zero to all R/W registers'
+          Top = 168
+          Width = 112
+          Caption = 'Write all zero'
+          OnClick = btnWrZeroClick
+          TabOrder = 0
+        end
+        object Label1: TLabel
+          Left = 16
+          Height = 20
+          Top = 8
+          Width = 109
+          Caption = 'Address decimal'
+          ParentColor = False
+        end
+        object edValue: TEdit
+          Left = 16
+          Height = 30
+          Hint = 'Enter a value between 0 and 255'
+          Top = 112
+          Width = 56
+          OnChange = edValueChange
+          TabOrder = 2
+          TextHint = '0..255'
+        end
+        object Label2: TLabel
+          Left = 16
+          Height = 20
+          Top = 88
+          Width = 136
+          Caption = 'Value decimal 0..255'
+          ParentColor = False
+        end
+        object lblHex: TLabel
+          Left = 88
+          Height = 20
+          Top = 118
+          Width = 34
+          Caption = '0x00'
+          ParentColor = False
+        end
+        object lblBin: TLabel
+          Left = 160
+          Height = 20
+          Top = 120
+          Width = 40
+          Caption = 'Binary'
+          ParentColor = False
+        end
+        object lblError: TLabel
+          Left = 88
+          Height = 20
+          Top = 40
+          Width = 55
+          Caption = 'Register'
+          ParentColor = False
+        end
+      end
+    end
+  end
+  object lblTemp: TLabel
+    Left = 424
+    Height = 20
+    Top = 53
+    Width = 16
+    Caption = '°C'
+    ParentColor = False
+  end
+  object SaveDialog: TSaveDialog
+    FileName = 'MPU6050_Register.csv'
+    Filter = 'CSV file|*.csv|Text file|*.txt|All files|*.*'
+    Left = 512
+    Top = 152
+  end
+  object Timer1: TTimer
+    Enabled = False
+    Interval = 100
+    OnTimer = Timer1Timer
+    Left = 576
+    Top = 152
+  end
+  object ListChartSource1: TListChartSource
+    Left = 624
+    Top = 152
+  end
+end

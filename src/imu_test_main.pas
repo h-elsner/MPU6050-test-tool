@@ -5,7 +5,7 @@ https://tutorials-raspberrypi.de/raspberry-pi-mpu-6050-rotationssensor-webgl-nod
 
 sudo raspi-config  --> I2C enable
 
-sudo i2cdetect -y 1  ---> Addr=68
+i2cdetect -y 1  ---> Addr=68
 An Adresse 0x68 (Hexadezimal) befindet sich also ein I2C Gerät – in unserem Fall ist es das MPU 6050 Gyroskop.
 
 Usage: i2cset [-f] [-y] [-m MASK] [-r] [-a] I2CBUS CHIP-ADDRESS DATA-ADDRESS [VALUE] ... [MODE]
@@ -49,7 +49,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, Grids,
-  ExtCtrls, ComCtrls, TAGraph, TASources, TASeries, strutils, process;
+  ExtCtrls, ComCtrls, TAGraph, TASources, TASeries, strutils, mpu_ctrl;
 
 type
 
@@ -64,6 +64,7 @@ type
     btnSave: TButton;
     btnStop: TButton;
     btnWrZero: TButton;
+    btnRefresh: TButton;
     chGyro: TChart;
     chAcc: TChart;
     chGyroLineX: TLineSeries;
@@ -95,6 +96,7 @@ type
     procedure btnCloseClick(Sender: TObject);
     procedure btnRdValClick(Sender: TObject);
     procedure btnReadClick(Sender: TObject);
+    procedure btnRefreshClick(Sender: TObject);
     procedure btnSaveClick(Sender: TObject);
     procedure btnStopClick(Sender: TObject);
     procedure btnWrAdrClick(Sender: TObject);
@@ -109,11 +111,8 @@ type
   private
     procedure RegHeader;
     procedure ValHeader;
-
   public
-    function GetReg(r: byte): byte;                {Read register on address r}
-    function GetRegW(r: byte): int16;              {Read word from r as address and address+1}
-    procedure SetReg(r, v: byte);                  {Write value v to register on address r}
+    procedure RefreshSensor;
   end;
 
 var
@@ -125,14 +124,10 @@ type
   TWdVal  = array[0..6] of int16;
 
 const
-  rst107=$40;                                      {Reset value for power management}
   df='%2.2d';                                      {Format two digits with leading zero}
   tf='0.0';
   gf='0.000';
-  nullx='0x';
-  DefAddr='0x68';
   maxSamples=100;
-  rwregs=[13..16, 25..28, 35..52, 55, 56, 99..104, 106..108, 114..116];
   ziff=['0'..'9'];
 
 implementation
@@ -141,55 +136,6 @@ implementation
 
 { TForm1 }
 
-{Temperature in °C = (TEMP_OUT Register Value as a signed quantity)/340 + 36.53}
-function ConvTemp(temp: int16): string;
-var
-  t: double;
-
-begin
-  t:=temp/340+36.53;
-  result:=FormatFloat(tf, t);
-end;
-
-function ConvGyro(gy: int16): double;              {Convert gyro values according datasheet}
-begin
-  case fs_sel of
-    0: result:=gy/131;                             {+/- 250°/s}
-    1: result:=gy/65.5;
-    2: result:=gy/32.8;
-    3: result:=gy/16.4;                            {+/- 2000 °/S}
-  end;
-end;
-
-function ConvAcc(acc: int16): double;              {Convert acc values according datasheet}
-begin
-  case afs_sel of
-    0: result:=acc/16384;                          {+/- 2G}
-    1: result:=acc/8192;
-    2: result:=acc/4096;
-    3: result:=acc/2048;                           {+/- 16G}
-  end;
-end;
-
-function afsToStr: string;                         {Just for information about used acc scale}
-begin
-  case afs_sel of
-    0: result:='+/- 2G';
-    1: result:='+/- 4G';
-    2: result:='+/- 8G';
-    3: result:='+/- 16G';
-  end;
-end;
-
-function fsToStr: string;                          {Just for information about used gyro scale}
-begin
-  case fs_sel of
-    0: result:='+/- 250°/s';
-    1: result:='+/- 500°/s';
-    2: result:='+/- 1000°/s';
-    3: result:='+/- 2000°/s';
-  end;
-end;
 
 procedure TForm1.RegHeader;                        {Header and register names}
 var
@@ -269,7 +215,7 @@ begin
   gridReg.Cells[0, 81]:='FIFO_R_W';
   gridReg.Cells[0, 82]:='WHO_AM_I';
   gridReg.EndUpdate;
-  SetReg(107, 0);                                  {Wake up}
+  MPUWakeUp;                                       {Wake up}
 end;
 
 procedure TForm1.ValHeader;                        {Header and shown values}
@@ -291,7 +237,7 @@ begin
   gridReg.Cells[0, 6]:='GYRO_Y';
   gridReg.Cells[0, 7]:='GYRO_Z';
 
-  gridReg.Cells[6, 1]:='G';
+  gridReg.Cells[6, 1]:='mG';
   gridReg.Cells[6, 2]:=gridReg.Cells[6, 1];
   gridReg.Cells[6, 3]:=gridReg.Cells[6, 1];
   gridReg.Cells[6, 4]:='°C';
@@ -300,76 +246,59 @@ begin
   gridReg.Cells[6, 7]:=gridReg.Cells[6, 5];
 
   gridReg.Cells[4, 1]:='Acc scale';
-  gridReg.Cells[4, 2]:=afsToStr;
+  gridReg.Cells[4, 2]:=afsToStr(afs_sel);
   gridReg.Cells[4, 3]:='';
   gridReg.Cells[4, 4]:='t/340+36.53°C';
   gridReg.Cells[4, 5]:='Gyro scale';
-  gridReg.Cells[4, 6]:=fsToStr;
+  gridReg.Cells[4, 6]:=fsToStr(fs_sel);
   gridReg.Cells[4, 7]:='';
   gridReg.EndUpdate;
-  SetReg(107, 0);                                  {Wake up}
+  MPUWakeUp;                                       {Wake up}
 end;
 
-function TForm1.GetReg(r: byte): byte;             {Read byte from MPU}
+procedure TForm1.RefreshSensor;                    {Check again if MPU is available}
 var
-  s: string;
-
-begin
-  RunCommand('i2cget', ['-y', '1', lblMPU.Caption, IntToStr(r)], s);
-  s:=ReplaceText(trim(s), nullx, '$');
-  result:=StrToInt(s);
-end;
-
-function TForm1.GetRegW(r: byte): int16;           {Read word from MPU}
-var
-  s: string;
-  w: int16;
-
-begin
-  RunCommand('i2cget', ['-y', '1', lblMPU.Caption, IntToStr(r), 'w'], s);
-  s:=ReplaceText(trim(s), nullx, '$');             {Word from i2cget is big endian}
-  w:=StrToIntDef(s, 0);
-  result:=BEtoN(w);
-end;
-
-
-procedure TForm1.FormCreate(Sender: TObject);      {Init, settings}
-var
-  adr: string;
   i: integer;
 
 begin
-  Timer1.Enabled:=false;
-  btnWrPrev.Enabled:=false;
-  fs_sel:=0;                                       {Default scale factors}
-  afs_sel:=0;
-  samples:=0;
-  for i:=0 to MaxSamples do begin
+  if GetAdrStr then begin
+    lblMPU.Caption:=DefAddr;
+    RegHeader;
+    for i:=0 to MaxSamples do begin
       chGyroLineX.AddXY(i, 0);
       chGyroLineY.AddXY(i, 0);
       chGyroLineZ.AddXY(i, 0);
       chAccLineX.AddXY(i, 0);
       chAccLineY.AddXY(i, 0);
       chAccLineZ.AddXY(i, 0);
-  end;
-
-  Caption:='Read/write register from IMU MPU60x0'; {Init, try MPU6050}
-  RunCommand('i2cdetect', ['-y', '1'], adr);
-  RunCommand('i2cget', ['-y', '1', DefAddr, '0x75'], adr);
-
-  adr:=trim(adr);
-  if adr<>DefAddr then begin
+    end;
+    samples:=0;
+    lblTemp.Caption:=TempToStr;
+    btnRead.Enabled:=true;
+    btnWrZero.Enabled:=true;
+    btnWrPrev.Enabled:=true;
+    btnWrAdr.Enabled:=true;
+    btnRdVal.Enabled:=true;
+  end else begin
     btnRead.Enabled:=false;
     btnWrZero.Enabled:=false;
     btnWrPrev.Enabled:=false;
+    btnWrAdr.Enabled:=false;
     btnRdVal.Enabled:=false;
-    gridReg.Cells[0, 0]:='No MPU connected';
-  end else begin
-    SetReg(107, 0);                                {Wake up}
-    lblTemp.Caption:=ConvTemp(GetRegW(65))+'°C';
-    RegHeader;
+    lbltemp.Caption:='';
+    lblMPU.Caption:='No MPU connected';
   end;
-  lblMPU.Caption:=adr;
+end;
+
+procedure TForm1.FormCreate(Sender: TObject);      {Init, settings}
+begin
+  Timer1.Enabled:=false;
+  btnWrPrev.Enabled:=false;
+  fs_sel:=0;                                       {Default scale factors}
+  afs_sel:=0;
+  samples:=0;
+  Caption:='Read/write register from IMU MPU60x0'; {Init, try MPU6050}
+  RefreshSensor;
 end;
 
 procedure TForm1.gridRegPrepareCanvas(sender: TObject; aCol, aRow: Integer;
@@ -383,16 +312,6 @@ begin
   end;
 end;
 
-procedure TForm1.SetReg(r, v: byte);
-var
-  s: string;
-
-begin
-  RunCommand('i2cset', ['-y', '1', lblMPU.Caption,
-                                   nullx+IntToHex(r, 2),
-                                   nullx+IntToHex(v, 2)], s);
-end;
-
 procedure TForm1.btnReadClick(Sender: TObject);    {Read all register}
 var
   i, b, x: byte;
@@ -400,11 +319,11 @@ var
 begin
   Timer1.Enabled:=false;
   RegHeader;
-  lblTemp.Caption:=ConvTemp(GetRegW(65))+'°C';
+  lblTemp.Caption:=TempToStr;
   gridReg.BeginUpdate;
   for i:=1 to 4 do begin
     x:=i+12;
-    b:=GetReg(x);
+    b:=GetReg(DefAddr, x);
     gridReg.Cells[1, i]:=IntToHex(x, 2);
     gridReg.Cells[2, i]:=Format(df, [x]);
     gridReg.Cells[4, i]:=IntToBin(b, 8);
@@ -413,7 +332,7 @@ begin
   end;
   for i:=5 to 8 do begin
     x:=i+20;
-    b:=GetReg(x);
+    b:=GetReg(DefAddr, x);
     gridReg.Cells[1, i]:=IntToHex(x, 2);
     gridReg.Cells[2, i]:=Format(df, [x]);
     gridReg.Cells[4, i]:=IntToBin(b, 8);
@@ -422,7 +341,7 @@ begin
   end;
   for i:=9 to 30 do begin
     x:=i+26;
-    b:=GetReg(x);
+    b:=GetReg(DefAddr, x);
     gridReg.Cells[1, i]:=IntToHex(x, 2);
     gridReg.Cells[2, i]:=Format(df, [x]);
     gridReg.Cells[4, i]:=IntToBin(b, 8);
@@ -431,7 +350,7 @@ begin
   end;
   for i:=31 to 69 do begin
     x:=i+27;
-    b:=GetReg(x);
+    b:=GetReg(DefAddr, x);
     gridReg.Cells[1, i]:=IntToHex(x, 2);
     gridReg.Cells[2, i]:=Format(df, [x]);
     gridReg.Cells[4, i]:=IntToBin(b, 8);
@@ -440,7 +359,7 @@ begin
   end;
   for i:=70 to 75 do begin
     x:=i+29;
-    b:=GetReg(x);
+    b:=GetReg(DefAddr, x);
     gridReg.Cells[1, i]:=IntToHex(x, 2);
     gridReg.Cells[2, i]:=Format(df, [x]);
     gridReg.Cells[4, i]:=IntToBin(b, 8);
@@ -449,7 +368,7 @@ begin
   end;
   for i:=76 to 78 do begin
     x:=i+30;
-    b:=GetReg(x);
+    b:=GetReg(DefAddr, x);
     gridReg.Cells[1, i]:=IntToHex(x, 2);
     gridReg.Cells[2, i]:=Format(df, [x]);
     gridReg.Cells[4, i]:=IntToBin(b, 8);
@@ -458,30 +377,31 @@ begin
   end;
   for i:=79 to 82 do begin
     x:=i+35;
-    b:=GetReg(x);
+    b:=GetReg(DefAddr, x);
     gridReg.Cells[1, i]:=IntToHex(x, 2);
     gridReg.Cells[2, i]:=Format(df, [x]);
     gridReg.Cells[4, i]:=IntToBin(b, 8);
     gridReg.Cells[5, i]:=IntToHex(b, 2);
     gridReg.Cells[6, i]:=Format(df, [b]);
   end;
-  gridReg.TopRow:=31;
+//  gridReg.TopRow:=31;                            {Jump to acc values}
   gridReg.EndUpdate;
   btnWrPrev.Enabled:=true;
 end;
 
-procedure TForm1.btnRdValClick(Sender: TObject);
-var
-  b: byte;
+procedure TForm1.btnRefreshClick(Sender: TObject); {Refresh sensor status}
+begin
+  RefreshSensor;
+end;
 
+procedure TForm1.btnRdValClick(Sender: TObject);   {Start reading values}
 begin
   btnWrPrev.Enabled:=false;
+  btnWrAdr.Enabled:=false;
+  fs_sel:=GetFS_SEL;                               {Gyro Scale 0..3}
+  afs_sel:=GetAFS_SEL;                             {Acc Scale 0..3}
   ValHeader;
   samples:=0;
-  b:=GetReg(27);                                   {Gyro_CONFIG}
-  fs_sel:=(b and $18) shr 3;                       {Gyro Scale 0..3}
-  b:=GetReg(28);                                   {ACCEL_CONFIG}
-  afs_sel:=(b and $18) shr 3;                      {Acc Scale 0..3}
   Timer1.Enabled:=true;
 end;
 
@@ -491,48 +411,48 @@ var
   varr: TWdVal;
 
 begin
-  a:=59;                                            {Register for Acc}
-  for i:=0 to 6 do begin                            {Read from MPU Acc, Temp, Gyro}
-    varr[i]:=GetRegW(a);
+  a:=59;                                           {Register for Acc}
+  for i:=0 to 6 do begin                           {Read from MPU Acc, Temp, Gyro}
+    varr[i]:=GetRegW(DefAddr, a);
     a:=a+2;
   end;
-  inc(samples);
-  if samples=MaxSamples then
-    samples:=0;
 
   if PageControl.ActivePage=tsTable then begin     {Write to table}
     gridReg.BeginUpdate;                           {Values raw}
     for i:=0 to 2 do begin                         {Acceleration}
       gridReg.Cells[1, i+1]:=IntToHex(varr[i], 4);
       gridReg.Cells[2, i+1]:=IntToStr(varr[i]);
-      gridReg.Cells[5, i+1]:=FormatFloat(gf, ConvAcc(varr[i]));
+      gridReg.Cells[5, i+1]:=FormatFloat(tf, ConvAcc(afs_sel, varr[i], true));
     end;
     gridReg.Cells[1, 4]:=IntToHex(varr[3], 4);
     gridReg.Cells[2, 4]:=IntToStr(varr[3]);
-    gridReg.Cells[5, 4]:=ConvTemp(varr[3]);        {Temperature}
+    gridReg.Cells[5, 4]:=FormatFloat(tf, ConvTemp(varr[3])); {Temperature}
     lblTemp.Caption:=gridReg.Cells[5, 4]+'°C';
     for i:=4 to 6 do begin                         {Gyroscope}
       gridReg.Cells[1, i+1]:=IntToHex(varr[i], 4);
       gridReg.Cells[2, i+1]:=IntToStr(varr[i]);
-      gridReg.Cells[5, i+1]:=FormatFloat(gf, ConvGyro(varr[i]));
+      gridReg.Cells[5, i+1]:=FormatFloat(gf, ConvGyro(fs_sel, varr[i]));
     end;
     gridReg.EndUpdate;
   end else begin
-    lblTemp.Caption:=ConvTemp(varr[3])+'°C';
+    lblTemp.Caption:=FormatFloat(tf, ConvTemp(varr[3]))+'°C';
   end;
 
   if PageControl.ActivePage=tsChartG then begin    {Gyroscope}
-    chGyroLineX.SetYValue(samples, ConvGyro(varr[4]));
-    chGyroLineY.SetYValue(samples, ConvGyro(varr[5]));
-    chGyroLineZ.SetYValue(samples, ConvGyro(varr[6]));
+    chGyroLineX.SetYValue(samples, ConvGyro(fs_sel, varr[4]));
+    chGyroLineY.SetYValue(samples, ConvGyro(fs_sel, varr[5]));
+    chGyroLineZ.SetYValue(samples, ConvGyro(fs_sel, varr[6]));
   end;
 
   if PageControl.ActivePage=tsChartA then begin    {Accelerometer}
-    chAccLineX.SetYValue(samples, ConvAcc(varr[0]));
-    chAccLineY.SetYValue(samples, ConvAcc(varr[1]));
-    chAccLineZ.SetYValue(samples, ConvAcc(varr[2]));
+    chAccLineX.SetYValue(samples, ConvAcc(afs_sel, varr[0], true));
+    chAccLineY.SetYValue(samples, ConvAcc(afs_sel, varr[1], true));
+    chAccLineZ.SetYValue(samples, ConvAcc(afs_sel, varr[2], true));
   end;
 
+  inc(samples);
+  if samples>MaxSamples then
+    samples:=0;
 end;
 
 procedure TForm1.btnCloseClick(Sender: TObject);
@@ -551,6 +471,7 @@ end;
 procedure TForm1.btnStopClick(Sender: TObject);
 begin
   Timer1.Enabled:=false;
+  btnWrAdr.Enabled:=true;
 end;
 
 procedure TForm1.btnWrAdrClick(Sender: TObject);   {Write one byte to a register}
@@ -560,8 +481,8 @@ var
 begin
   a:=StrToIntDef(edAdr.Text, 0) and $FF;
   if a in rwregs then begin
-    SetReg(107, 0);                                {Wake up}
-    SetReg(a, btnWrAdr.Tag);
+    MPUWakeUp;                                     {Wake up}
+    SetReg(DefAddr, a, btnWrAdr.Tag and $FF);
     lblError.Caption:=IntToStr(btnWrAdr.Tag)+' written to '+IntToStr(a);
   end;
 end;
@@ -575,32 +496,32 @@ begin
   RegHeader;
   for i:=1 to 4 do begin
     b:=StrToIntDef(gridReg.Cells[6, i], 0);
-    SetReg(i+12, b);
+    SetReg(DefAddr, i+12, b);
   end;
   for i:=5 to 8 do begin
     b:=StrToIntDef(gridReg.Cells[6, i], 0);
-    SetReg(i+20, b);
+    SetReg(DefAddr, i+20, b);
   end;
   for i:=9 to 26 do begin                          {I2C registers}
     b:=StrToIntDef(gridReg.Cells[6, i], 0);
-    SetReg(i+26, b);
+    SetReg(DefAddr, i+26, b);
   end;
   b:=StrToIntDef(gridReg.Cells[6, 29], 0);
-  SetReg(55, b);                                   {INT_PIN_CFG}
+  SetReg(DefAddr, 55, b);                          {INT_PIN_CFG}
   b:=StrToIntDef(gridReg.Cells[6, 30], 0);
-  SetReg(56, b);                                   {INT_ENABLE}
+  SetReg(DefAddr, 56, b);                          {INT_ENABLE}
 
   for i:=70 to 75 do begin
     b:=StrToIntDef(gridReg.Cells[6, i], 0);
-    SetReg(i+29, b);
+    SetReg(DefAddr, i+29, b);
   end;
   b:=StrToIntDef(gridReg.Cells[6, 76], 0);
-  SetReg(106, b);                                  {USER_CTRL}
+  SetReg(DefAddr, 106, b);                         {USER_CTRL}
   b:=StrToIntDef(gridReg.Cells[6, 78], 0);
-  SetReg(108, b);                                  {PWR_MGMT_2}
+  SetReg(DefAddr, 108, b);                         {PWR_MGMT_2}
   for i:=79 to 81 do begin
     b:=StrToIntDef(gridReg.Cells[6, i], 0);
-    SetReg(i+35, b);
+    SetReg(DefAddr, i+35, b);
   end;
 end;
 
@@ -609,25 +530,25 @@ var
   i, x, b: byte;
 
 begin
-  SetReg(107, 0);                                  {Wake up}
+  MPUWakeUp;                                       {Wake up}
   btnWrPrev.Enabled:=false;
   Timer1.Enabled:=false;
   RegHeader;
   for i:=1 to 4 do begin
-    SetReg(i+12, 0);
+    SetReg(DefAddr, i+12, 0);
   end;
   for i:=5 to 8 do begin
-    SetReg(i+20, 0);
+    SetReg(DefAddr, i+20, 0);
   end;
   for i:=9 to 26 do begin                          {I2C registers}
-    SetReg(i+26, 0);
+    SetReg(DefAddr, i+26, 0);
   end;
-  SetReg(55, 0);                                   {INT_PIN_CFG}
-  SetReg(56, 0);                                   {INT_ENABLE}
+  SetReg(DefAddr, 55, 0);                          {INT_PIN_CFG}
+  SetReg(DefAddr, 56, 0);                          {INT_ENABLE}
 
   for i:=31 to 69 do begin                         {Read-only registers}
     x:=i+27;
-    b:=GetReg(x);
+    b:=GetReg(DefAddr, x);
     gridReg.Cells[1, i]:=IntToHex(x, 2);
     gridReg.Cells[2, i]:=Format(df, [x]);
     gridReg.Cells[4, i]:=IntToBin(b, 8);
@@ -636,14 +557,14 @@ begin
   end;
 
   for i:=70 to 75 do begin
-    SetReg(i+29, 0);
+    SetReg(DefAddr, i+29, 0);
   end;
-  SetReg(106, 0);                                  {USER_CTRL}
-  SetReg(108, 0);                                  {PWR_MGMT_2}
+  SetReg(DefAddr, 106, 0);                         {USER_CTRL}
+  SetReg(DefAddr, 108, 0);                         {PWR_MGMT_2}
   for i:=79 to 81 do begin
-    SetReg(i+35, 0);
+    SetReg(DefAddr, i+35, 0);
   end;
-  SetReg(107, rst107);                             {PWR_MGMT_1}
+  SetReg(DefAddr, 107, rst107);                    {PWR_MGMT_1}
 end;
 
 procedure TForm1.edAdrChange(Sender: TObject);     {Check address}
@@ -652,7 +573,7 @@ var
 begin
   a:=StrToIntDef(edAdr.Text, 0) and $FF;
   if a in rwregs then begin
-    lblError.Caption:=nullx+IntToHex(a, 2);
+    lblError.Caption:=hexidc+IntToHex(a, 2);
     btnWrAdr.Enabled:=true;
   end else begin
     lblError.Caption:='Not a valid R/W register address';
@@ -671,7 +592,7 @@ begin
     if edValue.Text[i] in ziff then
       s:=s+edValue.Text[i];
   btnWrAdr.Tag:=StrToIntDef(s, 0) and $FF;
-  lblHex.Caption:=nullx+IntToHex(btnWrAdr.Tag, 2);
+  lblHex.Caption:=hexidc+IntToHex(btnWrAdr.Tag, 2);
   lblBin.Caption:=IntToBin(btnWrAdr.Tag, 8);
 end;
 

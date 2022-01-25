@@ -1,7 +1,7 @@
 object Form1: TForm1
-  Left = 972
+  Left = 973
   Height = 522
-  Top = 71
+  Top = 32
   Width = 687
   Caption = 'Form1'
   ClientHeight = 522
@@ -96,9 +96,9 @@ object Form1: TForm1
     Height = 434
     Top = 88
     Width = 687
-    ActivePage = tsTable
+    ActivePage = tsTools
     Anchors = [akTop, akLeft, akRight, akBottom]
-    TabIndex = 0
+    TabIndex = 3
     TabOrder = 6
     object tsTable: TTabSheet
       Caption = 'Table'
@@ -143,7 +143,7 @@ object Form1: TForm1
             Minors = <>
             Title.LabelFont.Orientation = 900
             Title.Visible = True
-            Title.Caption = 'G-Force [g]'
+            Title.Caption = 'G-Force [mG]'
             Title.LabelBrush.Style = bsClear
           end        
           item
@@ -311,6 +311,16 @@ object Form1: TForm1
           Caption = 'Register'
           ParentColor = False
         end
+      end
+      object btnRefresh: TButton
+        Left = 16
+        Height = 25
+        Hint = 'Refresh sensor status'
+        Top = 248
+        Width = 112
+        Caption = 'Refresh'
+        OnClick = btnRefreshClick
+        TabOrder = 1
       end
     end
   end

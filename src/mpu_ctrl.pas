@@ -9,6 +9,8 @@
  Preparations:
  -------------
  Enable I2C: sudo raspi-config > Interface Options > I2C > Yes
+ Possibly you need user access:
+ sudo usermod -aG i2c pi (pi or any other user)
 
  Connect MPU and check wiring (bus 1).
  pin1  Vcc
@@ -37,25 +39,33 @@ uses
    sysutils, strutils, process;
 
 const
-  DefAddr='0x68';                                  {Default address of MPU6050}
+  MPUadr='0x68';                                   {Default address of MPU6050}
+  ISTAdr='0x0E';
+  ISTID= '0x10';
   bus='1';                                         {Used I2C bus, default}
-  {Read/write register}
+{Read/write register MPU6050}
   rwregs=[13..16, 25..28, 35..52, 55, 56, 99..104, 106..108, 114..116];
   roregs=[53, 54, 58..96, 117];                    {Read-only registers}
+  rwIST=[10..12, 65, 66];                          {Register IST8310}
+  roIST=[0, 2..9, 28, 29];
   rst107=$40;                                      {Reset value for power management}
 
   i2cdct='i2cdetect';
   i2cget='i2cget';
   i2cset='i2cset';
+  i2cdump='i2cdump';
   yes='-y';                                        {Disable interactive mode}
   hexidc='0x';
   hexidp='$';
 
-function GetAdrStr: boolean;                       {Check MPU address from register WHO_AM_I}
+function GetAdrStrMPU: boolean;                    {Check MPU address from register WHO_AM_I}
+function GetAdrStrIST: boolean;                    {Check IST8310 address from register WHO_AM_I}
 function GetReg(adr: string; r: byte): byte;       {Read byte from MPU}
-function GetRegW(adr: string; r: byte): int16;     {Read word from MPU}
+function GetRegWbe(adr: string; r: byte): int16;   {Read word from MPU}
+function GetRegWle(adr: string; r: byte): int16;   {Read word from IST little endian}
 procedure SetReg(adr: string; r, v: byte);         {Write byte v to register r}
 procedure MPUWakeUp;                               {Power management set to wake up}
+procedure ISTreset;                                {Soft reset IST8310}
 function GetFS_SEL: byte;                          {Read scale factor for gyro (27)}
 function GetAFS_SEL: byte;                         {Read scale factor for acc (28)}
 function ConvTemp(temp: int16): double;            {Convert temperature}
@@ -65,20 +75,33 @@ function ConvAcc(afs: byte; acc: int16;            {Convert acc values according
                  mg: boolean=false): double;       {alternativ: output in mG}
 function afsToStr(afs: byte): string;              {Just for information about used acc scale}
 function fsToStr(fs: byte): string;                {Just for information about used gyro scale}
+function ScanI2C(intf: char='1'): string;          {Scan a I2C interface to find all connected chips}
 
 
 implementation
 
-function GetAdrStr: boolean;                       {Check MPU address from register WHO_AM_I}
+function GetAdrStrMPU: boolean;                    {Check MPU address from register WHO_AM_I}
 var
   s: string;
 
 begin
   s:='';
   RunCommand(i2cdct, [yes, bus], s);
-  RunCommand(i2cget, [yes, bus, DefAddr, '117'], s);
-  result:=trim(s)=DefAddr;
+  RunCommand(i2cget, [yes, bus, MPUadr, '117'], s);
+  result:=trim(s)=MPUadr;
 end;
+
+function GetAdrStrIST: boolean;                    {Check IST8310 address from register WHO_AM_I}
+var
+  s: string;
+
+begin
+  s:='';
+  RunCommand(i2cdct, [yes, bus], s);
+  RunCommand(i2cget, [yes, bus, ISTadr, '0'], s);
+  result:=trim(s)=ISTID;
+end;
+
 
 function GetReg(adr: string; r: byte): byte;       {Read byte from MPU}
 var
@@ -87,19 +110,29 @@ var
 begin
   RunCommand(i2cget, [yes, bus, adr, IntToStr(r)], s);
   s:=ReplaceText(trim(s), hexidc, hexidp);
-  result:=StrToIntDef(s, 0);
+  result:=StrToIntDef(s, $FF);
 end;
 
-function GetRegW(adr: string; r: byte): int16;     {Read word from MPU}
+function GetRegWbe(adr: string; r: byte): int16;   {Read word from MPU}
 var
   s: string;
   w: int16;
 
 begin
   RunCommand(i2cget, [yes, bus, adr, IntToStr(r), 'w'], s);
-  s:=ReplaceText(trim(s), hexidc, '$');            {Word from i2cget is big endian}
-  w:=StrToIntDef(s, 0);
+  s:=ReplaceText(trim(s), hexidc, hexidp);         {Word from i2cget is big endian}
+  w:=StrToIntDef(s, $FFFF);
   result:=BEtoN(w);
+end;
+
+function GetRegWle(adr: string; r: byte): int16;   {Read word from IST little endian}
+var
+  s: string;
+
+begin
+  RunCommand(i2cget, [yes, bus, adr, IntToStr(r), 'w'], s);
+  s:=ReplaceText(trim(s), hexidc, hexidp);
+  result:=StrToIntDef(s, $FFFF);
 end;
 
 procedure SetReg(adr: string; r, v: byte);         {Write byte v to register r}
@@ -112,7 +145,12 @@ end;
 
 procedure MPUWakeUp;                               {Power management set to wake up}
 begin
-  SetReg(DefAddr, 107, 0);
+  SetReg(MPUadr, 107, 0);
+end;
+
+procedure ISTreset;                                {Soft reset IST8310}
+begin
+  SetReg(ISTAdr, 11, 13);                          {Control register2 Soft reset}
 end;
 
 function GetFS_SEL: byte;                          {Read scale factor for gyro}
@@ -120,7 +158,7 @@ var
   b: byte;
 
 begin
-  b:=GetReg(DefAddr, 27);                          {Gyro_CONFIG}
+  b:=GetReg(MPUadr, 27);                           {Gyro_CONFIG}
   result:=(b and $18) shr 3;                       {Gyro Scale 0..3}
 end;
 
@@ -129,7 +167,7 @@ var
   b: byte;
 
 begin
-  b:=GetReg(DefAddr, 28);                          {Acc_CONFIG}
+  b:=GetReg(MPUadr, 28);                           {Acc_CONFIG}
   result:=(b and $18) shr 3;                       {Acc Scale 0..3}
 end;
 
@@ -141,7 +179,7 @@ end;
 
 function TempToStr: string;                        {Show chip temperature as string}
 begin
-  result:=FormatFloat('0.0', ConvTemp(GetRegW(DefAddr, 65)))+'°C';
+  result:=FormatFloat('0.0', ConvTemp(GetRegWbe(MPUadr, 65)))+'°C';
 end;
 
 function ConvGyro(fs: byte; gy: int16): double;    {Convert gyro values according datasheet}
@@ -187,5 +225,21 @@ begin
   end;
 end;
 
+function ScanI2C(intf: char=bus): string;          {Scan a I2C interface to find all connected chips}
+var
+  i: byte;
+  s, adr: string;
+
+begin
+  result:='';
+  RunCommand(i2cdct, [yes, bus], s);
+  for i:=3 to 127 do begin
+    adr:=hexidc+IntToHex(i, 2);                    {Test all possible addresses}
+    RunCommand(i2cget, [yes, intf, adr, '0'], s);
+    if pos(hexidc, s)>0 then
+      result:=result+adr+' ';
+  end;
+  result:=trim(result);
+end;
 
 end.

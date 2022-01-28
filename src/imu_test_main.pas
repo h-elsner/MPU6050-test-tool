@@ -786,6 +786,7 @@ begin
       lblST.Caption:='Gyro X-axis, 250°/s';
       gridReg.Cells[0, 0]:=lblST.Caption;
       gridReg.Cells[6, 6]:=fsToStr(0);
+      gridReg.Cells[6, 2]:=afsToStr(GetAFS_SEL);
       SetReg(MPUadr, 27, %10000000);
     end;
     13: begin
@@ -863,7 +864,6 @@ begin
       SetReg(MPUadr, 27, TimerST.Tag and $18);     {Restore previous Gyro setting}
       lblST.Caption:='Self test done';
       gridReg.Cells[0, 0]:=lblST.Caption;
-      gridReg.Cells[6, 2]:=afsToStr(GetAFS_SEL);
       gridReg.Cells[6, 6]:=fsToStr(GetFS_SEL);
     end;
   end;

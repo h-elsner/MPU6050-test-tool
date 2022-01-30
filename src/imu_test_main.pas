@@ -38,6 +38,12 @@ $ i2cset -y 1 0x68 0x6b 0x00
 $ watch -n 0.5 'i2cget -y 1 0x68 0x44'
 
 https://invensense.tdk.com/wp-content/uploads/2015/02/MPU-6000-Register-Map1.pdf
+
+
+IMU Pitch/Roll:
+
+https://create.arduino.cc/projecthub/MissionCritical/mpu-6050-tutorial-how-to-program-mpu-6050-with-arduino-aee39a
+
 *)
 
 
@@ -151,6 +157,7 @@ type
     procedure MPURegHdr;
     procedure MPUValHdr;
     procedure ISTRegHdr;                          {Header IST8310 register}
+    procedure HMCRegHdr;                          {Header HMC5883 register}
     procedure ISTValHdr;
     procedure SetTimer;
     procedure RefreshSensor;
@@ -161,6 +168,7 @@ var
   Form1: TForm1;
   fs_sel, afs_sel: byte;
   samples: integer;
+  CompAdr:string;
 
 type
   TWdVal  = array[0..6] of int16;
@@ -172,6 +180,8 @@ const
   maxSamples=100;
   ziff=['0'..'9'];
   clRW=clMoneyGreen;
+  appHdr='Read/write register from';
+  tab1=' ';
 
 implementation
 
@@ -337,7 +347,31 @@ begin
   gridReg.EndUpdate;
 end;
 
+procedure TForm1.HMCRegHdr;                        {Header HMC5883 register}
+begin
+  gridReg.RowCount:=14;
+  CommonRegHdr;
+  gridReg.BeginUpdate;
+  gridReg.Cells[0, 1]:='Configuration Register A';
+  gridReg.Cells[0, 2]:='Configuration Register B';
+  gridReg.Cells[0, 3]:='Mode Register';
+  gridReg.Cells[0, 4]:='Data Output X MSB Register';
+  gridReg.Cells[0, 5]:='Data Output X LSB Register';
+  gridReg.Cells[0, 6]:='Data Output Z MSB Register';
+  gridReg.Cells[0, 7]:='Data Output Z LSB Register';
+  gridReg.Cells[0, 8]:='Data Output Y MSB Register';
+  gridReg.Cells[0, 9]:='Data Output Y LSB Register';
+  gridReg.Cells[0, 10]:='Status Register';
+  gridReg.Cells[0, 11]:='Identification Register A';   {ASCII H}
+  gridReg.Cells[0, 12]:='Identification Register B';   {ASCII 4}
+  gridReg.Cells[0, 13]:='Identification Register C';   {ASCII 3}
+  gridReg.EndUpdate;
+end;
+
 procedure TForm1.ISTValHdr;                        {Header and shown values}
+var
+  i: byte;
+
 begin
   CommonValHdr;
   gridReg.BeginUpdate;
@@ -349,14 +383,20 @@ begin
   gridReg.Cells[0, 4]:='Temperature';
 
   gridReg.Cells[5, 1]:='raw';
-  gridReg.Cells[5, 2]:=gridReg.Cells[5, 1];
-  gridReg.Cells[5, 3]:=gridReg.Cells[5, 1];
-  gridReg.Cells[5, 4]:='°C';
-
   gridReg.Cells[6, 1]:='';
   gridReg.Cells[6, 2]:=gridReg.Cells[6, 1];
   gridReg.Cells[6, 3]:=gridReg.Cells[6, 1];
-  gridReg.Cells[6, 4]:='t/1000 °C';
+  if CompAdr=HMCadr then begin
+    for i:=1 to 5 do
+      gridReg.Cells[i, 4]:='';
+    gridReg.Cells[5, 1]:='mGauss';
+    gridReg.Cells[6, 4]:='n/a'
+  end else begin
+    gridReg.Cells[5, 4]:='°C';
+    gridReg.Cells[6, 4]:='t/1000 °C';
+  end;
+  gridReg.Cells[5, 2]:=gridReg.Cells[5, 1];
+  gridReg.Cells[5, 3]:=gridReg.Cells[5, 1];
   gridReg.EndUpdate;
 end;
 
@@ -375,6 +415,8 @@ begin
   btnWrAdr.Enabled:=false;
   btnWriteTable.Enabled:=false;
   btnAddSlave.Enabled:=false;
+  gbIST8310.Enabled:=false;
+  gbMPU6050.Enabled:=false;
   ist:=false;
 
   lbltemp.Caption:='';
@@ -394,7 +436,8 @@ begin
 
   if GetAdrStrIST then begin
     TimerMPU.Enabled:=false;
-    lblChipAdr.Caption:=ISTadr;
+    CompAdr:=ISTadr;
+    lblChipAdr.Caption:=CompAdr;
     if TimerIST.Enabled then                       {Cyclic reading is running}
       PageControl.ActivePage:=tsTable
     else
@@ -406,10 +449,23 @@ begin
     btnWrZero.Enabled:=true;
     btnWrAdr.Enabled:=true;
     ist:=true;
+    gbIST8310.Enabled:=true;
+  end;
+
+  if GetAdrStrHMC then begin
+    CompAdr:=HMCadr;
+    lblChipAdr.Caption:=CompAdr;
+    btnISTRead.Enabled:=true;
+    btnISTcyc.Enabled:=true;
+    btnWrZero.Enabled:=true;
+    btnWrAdr.Enabled:=true;
+    ist:=true;                                     {Add as slave is possible}
   end;
 
   if GetAdrStrMPU then begin
     lblChipAdr.Caption:=MPUadr;
+    caption:=AppHdr+AdrToChip(MPUadr);
+    gbMPU6050.Enabled:=true;
     TimerIST.Enabled:=false;
     if TimerMPU.Enabled then                       {Cyclic reading is running}
       PageControl.ActivePage:=tsTable
@@ -420,9 +476,12 @@ begin
     btnMPUcyc.Enabled:=true;
     btnWrZero.Enabled:=true;
     btnWrAdr.Enabled:=true;
-    if ist then
+    if ist then begin
       btnAddSlave.Enabled:=true;
-  end;
+      caption:=caption+tab1+AdrToChip(CompAdr)
+    end;
+  end else
+    caption:=AppHdr+AdrToChip(CompAdr);
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);      {Init, settings}
@@ -433,7 +492,8 @@ begin
   fs_sel:=0;                                       {Default scale factors}
   afs_sel:=0;
   samples:=0;
-  Caption:='Read/write register from IMU MPU60x0'; {Init, try MPU6050}
+  CompAdr:='';
+  Caption:=AppHdr+intfac;                          {Init, try MPU6050}
   RefreshSensor;
 end;
 
@@ -453,7 +513,8 @@ begin
   if (aCol=0) and (gridReg.RowCount>16) then begin {Not for values}
     r:=StrToIntDef(gridReg.Cells[2, aRow], 255);   {Mark R/W yellow}
     if ((r in rwregs) and (lblChipAdr.Caption=MPUadr)) or
-       ((r in rwIST) and (lblChipAdr.Caption=ISTadr)) then begin
+       ((r in rwIST) and (lblChipAdr.Caption=ISTAdr)) or
+       ((r in rwHMC) and (lblChipAdr.Caption=HMCAdr)) then begin
       gridReg.Canvas.Brush.Color:=clRW;
     end;
   end;
@@ -663,38 +724,73 @@ end;
 procedure TForm1.TimerISTTimer(Sender: TObject);
 var
   w: int16;
-  i: byte;
+  g: double;
+  i, gain: byte;
 
 begin
-  if cbISTsingle.Checked then
+  gain:=88;                                        {invalid}
+  if cbISTsingle.Checked and (CompAdr=ISTAdr) then
     SetReg(ISTAdr, 10, 1);                         {Single measurement mode}
+  if CompAdr=HMCAdr then begin
+    gain:=getGain;
+    gridReg.Cells[6, 1]:=GainToStr(gain);
+  end;
   if PageControl.ActivePage=tsTable then begin     {Write to table}
 
     gridReg.BeginUpdate;
 
-    for i:=1 to 3 do begin                         {Magnetometer}
-      w:=GetRegWle(ISTAdr, i*2+1);
-      gridReg.Cells[1, i]:=IntToHex(w, 4);
-      gridReg.Cells[2, i]:=IntToStr(w);
-      gridReg.Cells[4, i]:=FormatFloat(tf, w);
+    if CompAdr=ISTadr then begin
+      for i:=1 to 3 do begin                       {Magnetometer}
+        w:=GetRegWle(ISTAdr, i*2+1);
+        gridReg.Cells[1, i]:=IntToHex(w, 4);
+        gridReg.Cells[2, i]:=IntToStr(w);
+        gridReg.Cells[4, i]:=FormatFloat(tf, w);
+      end;
+
+      w:=GetRegWle(ISTAdr, $1C);                   {Temperature}
+      gridReg.Cells[1, 4]:=IntToHex(w, 4);
+      gridReg.Cells[2, 4]:=IntToStr(w);
+      gridReg.Cells[4, 4]:=FormatFloat(tf, w/1000);
     end;
 
-    w:=GetRegWle(ISTAdr, $1C);                     {Temperature}
-    gridReg.Cells[1, 4]:=IntToHex(w, 4);
-    gridReg.Cells[2, 4]:=IntToStr(w);
-    gridReg.Cells[4, 4]:=FormatFloat(tf, w/1000);
-
+    if CompAdr=HMCadr then begin
+      w:=GetRegWle(HMCAdr, 3);                     {X}
+      gridReg.Cells[1, 1]:=IntToHex(w, 4);
+      gridReg.Cells[2, 1]:=IntToStr(w);
+      gridReg.Cells[4, 1]:=FormatFloat(tf, ConvHMC(w, gain));
+      w:=GetRegWle(HMCAdr, 7);
+      gridReg.Cells[1, 2]:=IntToHex(w, 4);
+      gridReg.Cells[2, 2]:=IntToStr(w);
+      gridReg.Cells[4, 2]:=FormatFloat(tf, ConvHMC(w, gain));
+      w:=GetRegWle(HMCAdr, 5);
+      gridReg.Cells[1, 3]:=IntToHex(w, 4);
+      gridReg.Cells[2, 3]:=IntToStr(w);
+      gridReg.Cells[4, 3]:=FormatFloat(tf, ConvHMC(w, gain));
+    end;
     gridReg.EndUpdate;
   end;
 
   if PageControl.ActivePage=tsMag then begin       {Compass}
-    chMagLineX.SetYValue(samples, GetRegWle(ISTAdr, 3));
-    chMagLineY.SetYValue(samples, GetRegWle(ISTAdr, 5));
-    chMagLineZ.SetYValue(samples, GetRegWle(ISTAdr, 7));
-    w:=GetRegWle(ISTAdr, $1C);                     {Temperature}
+    if CompAdr=ISTadr then begin
+      chMagLineX.SetYValue(samples, GetRegWle(ISTAdr, 3));
+      chMagLineY.SetYValue(samples, GetRegWle(ISTAdr, 5));
+      chMagLineZ.SetYValue(samples, GetRegWle(ISTAdr, 7));
+      w:=GetRegWle(ISTAdr, $1C);                   {Temperature}
+    end;
+
+    if CompAdr=HMCadr then begin
+      g:=ConvHMC(GetRegWle(HMCAdr, 3), gain);      {X}
+      chMagLineX.SetYValue(samples, g);
+      g:=ConvHMC(GetRegWle(HMCAdr, 7), gain);      {Y}
+      chMagLineY.SetYValue(samples, g);
+      g:=ConvHMC(GetRegWle(HMCAdr, 5), gain);      {Z}
+      chMagLineZ.SetYValue(samples, g);
+    end;
   end;
 
-  lblTemp.Caption:=FormatFloat(tf, w/1000)+'°C';
+  if CompAdr=ISTadr then
+    lblTemp.Caption:=FormatFloat(tf, w/1000)+'°C';
+
   inc(samples);
   if samples>MaxSamples then
     samples:=0;
@@ -885,63 +981,74 @@ begin
   btnWriteTable.Enabled:=true;
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
-  lblChipAdr.Caption:=ISTAdr;
-  ISTRegHdr;
-  SetReg(ISTAdr, 10, 1);                           {Single measurement mode for temp}
-  lblTemp.Caption:=FormatFloat(tf, GetRegWle(ISTAdr, $1C)/1000)+'°C';
+  lblChipAdr.Caption:=CompAdr;
   PageControl.ActivePage:=tsTable;
-  ISTreset;                                        {Control register2 Soft reset}
-  if cbISTsingle.Checked then
-    SetReg(ISTAdr, 10, 1);                         {Single measurement mode}
-  if cbISTdren.Checked then
-    SetReg(ISTAdr, 11, 8);                         {DREN}
-  if cbISTSTR.Checked then
-    SetReg(ISTAdr, 12, 64);                        {Self test mode}
-
   gridReg.BeginUpdate;
+  if CompAdr=ISTadr then begin
+    ISTRegHdr;
+    SetReg(ISTAdr, 10, 1);                         {Single measurement mode for temp}
+    lblTemp.Caption:=FormatFloat(tf, GetRegWle(ISTAdr, $1C)/1000)+'°C';
+    ISTreset;                                        {Control register2 Soft reset}
+    if cbISTsingle.Checked then
+      SetReg(ISTAdr, 10, 1);                         {Single measurement mode}
+    if cbISTdren.Checked then
+      SetReg(ISTAdr, 11, 8);                         {DREN}
+    if cbISTSTR.Checked then
+      SetReg(ISTAdr, 12, 64);                        {Self test mode}
 
-  b:=GetReg(ISTAdr, 0);
-  gridReg.Cells[1, 1]:='00';
-  gridReg.Cells[2, 1]:=gridReg.Cells[1, 1];
-  gridReg.Cells[4, 1]:=IntToBin(b, 8);
-  gridReg.Cells[5, 1]:=IntToHex(b, 2);
-  gridReg.Cells[6, 1]:=Format(df, [b]);
+    b:=GetReg(ISTAdr, 0);
+    gridReg.Cells[1, 1]:='00';
+    gridReg.Cells[2, 1]:=gridReg.Cells[1, 1];
+    gridReg.Cells[4, 1]:=IntToBin(b, 8);
+    gridReg.Cells[5, 1]:=IntToHex(b, 2);
+    gridReg.Cells[6, 1]:=Format(df, [b]);
 
-  for i:=2 to 12 do begin
-    b:=GetReg(ISTAdr, i);
-    gridReg.Cells[1, i]:=IntToHex(i, 2);
-    gridReg.Cells[2, i]:=Format(df, [i]);
-    gridReg.Cells[4, i]:=IntToBin(b, 8);
-    gridReg.Cells[5, i]:=IntToHex(b, 2);
-    gridReg.Cells[6, i]:=Format(df, [b]);
+    for i:=2 to 12 do begin
+      b:=GetReg(ISTAdr, i);
+      gridReg.Cells[1, i]:=IntToHex(i, 2);
+      gridReg.Cells[2, i]:=Format(df, [i]);
+      gridReg.Cells[4, i]:=IntToBin(b, 8);
+      gridReg.Cells[5, i]:=IntToHex(b, 2);
+      gridReg.Cells[6, i]:=Format(df, [b]);
+    end;
+
+    b:=GetReg(ISTAdr, $1C);                          {Temperature}
+    gridReg.Cells[1, 13]:='1C';
+    gridReg.Cells[2, 13]:='28';
+    gridReg.Cells[4, 13]:=IntToBin(b, 8);
+    gridReg.Cells[5, 13]:=IntToHex(b, 2);
+    gridReg.Cells[6, 13]:=Format(df, [b]);
+    b:=GetReg(ISTAdr, $1D);
+    gridReg.Cells[1, 14]:='1D';
+    gridReg.Cells[2, 14]:='29';
+    gridReg.Cells[4, 14]:=IntToBin(b, 8);
+    gridReg.Cells[5, 14]:=IntToHex(b, 2);
+    gridReg.Cells[6, 14]:=Format(df, [b]);
+
+    b:=GetReg(ISTAdr, $41);                          {AVG control}
+    gridReg.Cells[1, 15]:='41';
+    gridReg.Cells[2, 15]:='65';
+    gridReg.Cells[4, 15]:=IntToBin(b, 8);
+    gridReg.Cells[5, 15]:=IntToHex(b, 2);
+    gridReg.Cells[6, 15]:=Format(df, [b]);
+    b:=GetReg(ISTAdr, $42);                          {PD control}
+    gridReg.Cells[1, 16]:='42';
+    gridReg.Cells[2, 16]:='66';
+    gridReg.Cells[4, 16]:=IntToBin(b, 8);
+    gridReg.Cells[5, 16]:=IntToHex(b, 2);
+    gridReg.Cells[6, 16]:=Format(df, [b]);
   end;
-
-  b:=GetReg(ISTAdr, $1C);                          {Temperature}
-  gridReg.Cells[1, 13]:='1C';
-  gridReg.Cells[2, 13]:='28';
-  gridReg.Cells[4, 13]:=IntToBin(b, 8);
-  gridReg.Cells[5, 13]:=IntToHex(b, 2);
-  gridReg.Cells[6, 13]:=Format(df, [b]);
-  b:=GetReg(ISTAdr, $1D);
-  gridReg.Cells[1, 14]:='1D';
-  gridReg.Cells[2, 14]:='29';
-  gridReg.Cells[4, 14]:=IntToBin(b, 8);
-  gridReg.Cells[5, 14]:=IntToHex(b, 2);
-  gridReg.Cells[6, 14]:=Format(df, [b]);
-
-  b:=GetReg(ISTAdr, $41);                          {AVG control}
-  gridReg.Cells[1, 15]:='41';
-  gridReg.Cells[2, 15]:='65';
-  gridReg.Cells[4, 15]:=IntToBin(b, 8);
-  gridReg.Cells[5, 15]:=IntToHex(b, 2);
-  gridReg.Cells[6, 15]:=Format(df, [b]);
-  b:=GetReg(ISTAdr, $42);                          {PD control}
-  gridReg.Cells[1, 16]:='42';
-  gridReg.Cells[2, 16]:='66';
-  gridReg.Cells[4, 16]:=IntToBin(b, 8);
-  gridReg.Cells[5, 16]:=IntToHex(b, 2);
-  gridReg.Cells[6, 16]:=Format(df, [b]);
-
+  if CompAdr=HMCadr then begin
+    HMCRegHdr;
+    for i:=0 to 12 do begin
+      b:=GetReg(HMCAdr, i);
+      gridReg.Cells[1, i+1]:=IntToHex(i, 2);
+      gridReg.Cells[2, i+1]:=Format(df, [i]);
+      gridReg.Cells[4, i+1]:=IntToBin(b, 8);
+      gridReg.Cells[5, i+1]:=IntToHex(b, 2);
+      gridReg.Cells[6, i+1]:=Format(df, [b]);
+    end;
+  end;
   gridReg.EndUpdate;
 end;
 
@@ -951,12 +1058,16 @@ begin
   TimerIST.Enabled:=false;
   btnWriteTable.Enabled:=false;
   btnWrAdr.Enabled:=false;
-  lblChipAdr.Caption:=ISTAdr;
+  lblChipAdr.Caption:=CompAdr;
   ISTValHDR;
   PageControl.ActivePage:=tsTable;
-  ISTreset;                                      {Control register2 Soft reset}
-  if cbISTdren.Checked then
-    SetReg(ISTAdr, 11, 8);                       {DREN}
+  if CompAdr=ISTadr then begin
+    ISTreset;                                      {Control register2 Soft reset}
+    if cbISTdren.Checked  then
+      SetReg(ISTAdr, 11, 8);                       {DREN}
+  end else
+    if CompAdr=HMCadr then
+      HMCinit;
   TimerIST.Enabled:=true;
 end;
 
@@ -1029,7 +1140,8 @@ var
 begin
   a:=StrToIntDef(edAdr.Text, 0) and $FF;
   if ((a in rwregs) and (lblChipAdr.Caption=MPUadr)) or
-     ((a in rwIST) and (lblChipAdr.Caption=ISTadr)) then begin
+     ((a in rwIST) and (lblChipAdr.Caption=ISTadr)) or
+     ((a in rwHMC) and (lblChipAdr.Caption=HMCadr)) then begin
     lblError.Caption:=hexidc+IntToHex(a, 2);
     btnWrAdr.Enabled:=true;
   end else begin
@@ -1061,6 +1173,7 @@ begin
   TimerIST.Enabled:=false;
 
   if lblChipAdr.Caption=MPUadr then begin          {MPU6050}
+    TimerST.Enabled:=false;
     MPURegHdr;
     for i:=1 to 4 do begin
       b:=StrToIntDef(gridReg.Cells[6, i], 0);
@@ -1099,6 +1212,11 @@ begin
     SetReg(ISTadr, 65, StrToIntDef(gridReg.Cells[6, 15], 0));
     SetReg(ISTadr, 66, StrToIntDef(gridReg.Cells[6, 16], 0));
   end;
+
+  if lblChipAdr.Caption=HMCadr then begin          {HMC5883}
+    for i:=0 to 2 do                               {Conf / Mode register}
+      SetReg(HMCadr, i, StrToIntDef(gridReg.Cells[6, i+1], 0));
+  end;
 end;
 
 procedure TForm1.btnWrZeroClick(Sender: TObject);  {Write zero to all R/W registers}
@@ -1109,7 +1227,9 @@ begin
   btnWriteTable.Enabled:=false;
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
+
   if lblChipAdr.Caption=MPUadr then begin          {MPU6050}
+    TimerST.Enabled:=false;
     MPUWakeUp;                                     {Wake up}
     MPUregHdr;
     for i:=1 to 4 do begin
@@ -1150,6 +1270,11 @@ begin
       SetReg(ISTadr, i, 0);
     SetReg(ISTadr, 65, 0);                         { $41 Avarage timer control}
     SetReg(ISTadr, 66, 0);                         { $42 Pulse duration control}
+  end;
+
+  if lblChipAdr.Caption=HMCadr then begin          {HMC5883}
+    for i:=0 to 2 do                               {Conf / Mode register}
+      SetReg(HMCadr, i, 0);
   end;
 end;
 

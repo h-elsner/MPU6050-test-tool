@@ -39,15 +39,20 @@ uses
    sysutils, strutils, process;
 
 const
-  MPUadr='0x68';                                   {Default address of MPU6050}
-  ISTAdr='0x0E';
+  MPUadr='0x68';                                   {Default address of I2C chips}
+  ISTadr='0x0E';
   ISTID= '0x10';
+  HMCadr='0x1E';
+  intfac='I²C';
+
   bus='1';                                         {Used I2C bus, default}
 {Read/write register MPU6050}
   rwregs=[13..16, 25..28, 35..52, 55, 56, 99..104, 106..108, 114..116];
   roregs=[53, 54, 58..96, 117];                    {Read-only registers}
   rwIST=[10..12, 65, 66];                          {Register IST8310}
   roIST=[0, 2..9, 28, 29];
+  rwHMC=[0..2];                                    {Register HMC5883}
+  roHMC=[3..12];
   rst107=$40;                                      {Reset value for power management}
 
   i2cdct='i2cdetect';
@@ -60,21 +65,27 @@ const
 
 function GetAdrStrMPU: boolean;                    {Check MPU address from register WHO_AM_I}
 function GetAdrStrIST: boolean;                    {Check IST8310 address from register WHO_AM_I}
+function GetAdrStrHMC: boolean;                    {Check HMC5883 address frm ID register A}
 function GetReg(adr: string; r: byte): byte;       {Read byte from MPU}
 function GetRegWbe(adr: string; r: byte): int16;   {Read word from MPU}
 function GetRegWle(adr: string; r: byte): int16;   {Read word from IST little endian}
 procedure SetReg(adr: string; r, v: byte);         {Write byte v to register r}
 procedure MPUWakeUp;                               {Power management set to wake up}
 procedure ISTreset;                                {Soft reset IST8310}
+procedure HMCinit;                                 {Derfault initialisation for continous masurement}
 function GetFS_SEL: byte;                          {Read scale factor for gyro (27)}
 function GetAFS_SEL: byte;                         {Read scale factor for acc (28)}
+function GetGain: byte;                            {Get gain from HMC588s, ConfReg B}
 function ConvTemp(temp: int16): double;            {Convert temperature}
 function TempToStr: string;                        {Show chip temperature as string}
 function ConvGyro(fs: byte; gy: int16): double;    {Convert gyro values according datasheet}
 function ConvAcc(afs: byte; acc: int16;            {Convert acc values according datasheet}
                  mg: boolean=false): double;       {alternativ: output in mG}
+function ConvHMC(raw: int16; gain: byte): double;  {Convert raw to Gauss}
+function GainToStr(gain: byte): string;            {Just for information about gain}
 function afsToStr(afs: byte): string;              {Just for information about used acc scale}
 function fsToStr(fs: byte): string;                {Just for information about used gyro scale}
+function AdrToChip(adr: string): string;           {Find chip type on I2C bus 1}
 function ScanI2C(intf: char='1'): string;          {Scan a I2C interface to find all connected chips}
 
 
@@ -102,6 +113,16 @@ begin
   result:=trim(s)=ISTID;
 end;
 
+function GetAdrStrHMC: boolean;                    {Check HMC5883 address frm ID register A}
+var
+  s: string;
+
+begin
+  s:='';
+  RunCommand(i2cdct, [yes, bus], s);
+  RunCommand(i2cget, [yes, bus, HMCadr, '0x0A'], s);
+  result:=trim(s)='0x48';
+end;
 
 function GetReg(adr: string; r: byte): byte;       {Read byte from MPU}
 var
@@ -153,6 +174,13 @@ begin
   SetReg(ISTAdr, 11, 13);                          {Control register2 Soft reset}
 end;
 
+procedure HMCinit;                                 {Default initialisation for continous masurement}
+begin
+  SetReg(HMCadr, 0, $10);                          {Defaults: 1 sample, 15Hz, normal conf}
+  SetReg(HMCadr, 1, $20);                          {Default gain 1: +/-1.3Gauss}
+  SetReg(HMCadr, 2, 0);                            {Continuous mode}
+end;
+
 function GetFS_SEL: byte;                          {Read scale factor for gyro}
 var
   b: byte;
@@ -169,6 +197,15 @@ var
 begin
   b:=GetReg(MPUadr, 28);                           {Acc_CONFIG}
   result:=(b and $18) shr 3;                       {Acc Scale 0..3}
+end;
+
+function GetGain: byte;                            {Get gain from HMC588s, ConfReg B}
+var
+  b: byte;
+
+begin
+  b:=GetReg(HMCadr, 1);
+  result:=(b and $E0) shr 5;                       {gain 0..7}
 end;
 
 {Temperature in °C = (TEMP_OUT Register Value as a signed quantity)/340 + 36.53}
@@ -205,6 +242,22 @@ begin
     result:=result*1000;
 end;
 
+function ConvHMC(raw: int16; gain: byte): double;  {Convert raw to Gauss, gain 0..7}
+begin
+  case gain of
+    0: result:=raw/1370;
+    1: result:=raw/1090;                           {Default}
+    2: result:=raw/820;
+    3: result:=raw/660;
+    4: result:=raw/440;
+    5: result:=raw/390;
+    6: result:=raw/330;
+    7: result:=raw/230;
+  else
+    result:=0;
+  end;
+end;
+
 function afsToStr(afs: byte): string;              {Just for information about used acc scale}
 begin
   case afs of
@@ -212,6 +265,38 @@ begin
     1: result:='+/- 4G';
     2: result:='+/- 8G';
     3: result:='+/- 16G';
+  end;
+end;
+
+function GainToStr(gain: byte): string;            {Just for information about gain}
+begin
+  case gain of
+    0: result:='+/- 0.88Ga';
+    1: result:='+/- 1.3Ga';                        {Default}
+    2: result:='+/- 1.9Ga';
+    3: result:='+/- 2.5Ga';
+    4: result:='+/- 4.0Ga';
+    5: result:='+/- 4.7Ga';
+    6: result:='+/- 5.6Ga';
+    7: result:='+/- 8.1Ga';
+  else
+    result:='';
+  end;
+end;
+
+function AdrToChip(adr: string): string;           {Find chip type on I2C bus 1}
+begin
+  result:='';
+  if adr=MPUadr then begin
+    result:='MPU6050';
+    exit
+  end;
+  if adr=ISTadr then begin
+    result:='IST8310';
+    exit
+  end;
+  if adr=HMCadr then begin
+    result:='HMC5883';
   end;
 end;
 

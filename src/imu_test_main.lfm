@@ -19,7 +19,7 @@ object Form1: TForm1
     Hint = 'Read whole register set'
     Top = 16
     Width = 112
-    Caption = 'MPU6050 Reg'
+    Caption = 'MPU Reg'
     OnClick = btnMPUReadClick
     TabOrder = 0
   end
@@ -51,7 +51,7 @@ object Form1: TForm1
     Hint = 'Cyclic read Acceleration, Temperature and Gyro'
     Top = 48
     Width = 112
-    Caption = '&MPU6050 cyc'
+    Caption = '&MPU cyc'
     OnClick = btnMPUcycClick
     TabOrder = 1
   end
@@ -61,7 +61,7 @@ object Form1: TForm1
     Hint = 'Stop reading values'
     Top = 48
     Width = 112
-    Caption = 'Stop reading'
+    Caption = '&Stop reading'
     OnClick = btnStopClick
     TabOrder = 2
   end
@@ -582,20 +582,20 @@ object Form1: TForm1
   object btnISTRead: TButton
     Left = 152
     Height = 25
-    Hint = 'Register compass chip IST8310'
+    Hint = 'Read all register from compass chip'
     Top = 16
     Width = 112
-    Caption = 'IST8310 Reg'
+    Caption = 'Comp Reg'
     OnClick = btnISTReadClick
     TabOrder = 7
   end
   object btnISTcyc: TButton
     Left = 152
     Height = 25
-    Hint = 'Register compass chip IST8310'
+    Hint = 'Cyclic read values from compass chip'
     Top = 48
     Width = 112
-    Caption = '&IST8310 Cyc'
+    Caption = '&Comp Cyc'
     Enabled = False
     OnClick = btnISTcycClick
     TabOrder = 8

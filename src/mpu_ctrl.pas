@@ -43,6 +43,7 @@ const
   ISTadr='0x0E';
   ISTID= '0x10';
   HMCadr='0x1E';
+  AS5adr='0x36';
   intfac='I²C';
 
   bus='1';                                         {Used I2C bus, default}
@@ -55,6 +56,10 @@ const
   roHMC=[3..12];
   rst107=$40;                                      {Reset value for power management}
 
+  rwpAS5=[1..8];
+  roAS5=[0, 11..15, 26..28];
+  rwAS5=255;                                       {Write: Burn_Angle=$80, Burn_Setting=$40}
+
   i2cdct='i2cdetect';
   i2cget='i2cget';
   i2cset='i2cset';
@@ -66,6 +71,7 @@ const
 function GetAdrStrMPU: boolean;                    {Check MPU address from register WHO_AM_I}
 function GetAdrStrIST: boolean;                    {Check IST8310 address from register WHO_AM_I}
 function GetAdrStrHMC: boolean;                    {Check HMC5883 address frm ID register A}
+function GetAdrStrAS5: boolean;                    {Check AS5600 address if burn is 0}
 function GetReg(adr: string; r: byte): byte;       {Read byte from MPU}
 function GetRegWbe(adr: string; r: byte): int16;   {Read word from MPU}
 function GetRegWle(adr: string; r: byte): int16;   {Read word from IST little endian}
@@ -122,6 +128,17 @@ begin
   RunCommand(i2cdct, [yes, bus], s);
   RunCommand(i2cget, [yes, bus, HMCadr, '0x0A'], s);
   result:=trim(s)='0x48';
+end;
+
+function GetAdrStrAS5: boolean;                    {Check AS5600 address if burn is 0}
+var
+  s: string;
+
+begin
+  s:='';
+  RunCommand(i2cdct, [yes, bus], s);
+  RunCommand(i2cget, [yes, bus, AS5adr, '0xFF'], s);
+  result:=trim(s)='0x00';
 end;
 
 function GetReg(adr: string; r: byte): byte;       {Read byte from MPU}
@@ -297,6 +314,10 @@ begin
   end;
   if adr=HMCadr then begin
     result:='HMC5883';
+    exit;
+  end;
+  if adr=AS5adr then begin
+    result:='AS5600';
   end;
 end;
 

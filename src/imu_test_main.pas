@@ -63,6 +63,7 @@ type
 
   TForm1 = class(TForm)
     btnAddSlave: TButton;
+    btnAS5Reg: TButton;
     btnSelftest: TButton;
     btnISTRead: TButton;
     btnISTcyc: TButton;
@@ -98,6 +99,7 @@ type
     gbMPU6050: TGroupBox;
     gbTimer: TGroupBox;
     gbHexBin: TGroupBox;
+    gbAS5: TGroupBox;
     Label1: TLabel;
     Label2: TLabel;
     lblScan: TLabel;
@@ -124,6 +126,7 @@ type
     tsTable: TTabSheet;
     tsChartG: TTabSheet;
     TimerMPU: TTimer;
+    procedure btnAS5RegClick(Sender: TObject);
     procedure btnCloseClick(Sender: TObject);
     procedure btnISTReadClick(Sender: TObject);
     procedure btnISTcycClick(Sender: TObject);
@@ -417,9 +420,9 @@ begin
   btnAddSlave.Enabled:=false;
   gbIST8310.Enabled:=false;
   gbMPU6050.Enabled:=false;
+  gbAS5.Enabled:=false;
   ist:=false;
 
-  lbltemp.Caption:='';
   lblChipAdr.Caption:='Nothing found';
   for i:=0 to MaxSamples do begin
     chGyroLineX.AddXY(i, 0);
@@ -462,6 +465,16 @@ begin
     ist:=true;                                     {Add as slave is possible}
   end;
 
+  if GetAdrStrAS5 then begin
+    lblChipAdr.Caption:=AS5Adr;
+    gbAS5.Enabled:=true;
+    ist:=true;
+    if CompAdr<>'' then
+      CompAdr:=CompAdr+tab1+AS5Adr
+    else
+      CompAdr:=AS5Adr;
+  end;
+
   if GetAdrStrMPU then begin
     lblChipAdr.Caption:=MPUadr;
     caption:=AppHdr+AdrToChip(MPUadr);
@@ -481,7 +494,8 @@ begin
       caption:=caption+tab1+AdrToChip(CompAdr)
     end;
   end else
-    caption:=AppHdr+AdrToChip(CompAdr);
+    if ist then
+      caption:=AppHdr+tab1+AdrToChip(CompAdr);
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);      {Init, settings}
@@ -493,7 +507,7 @@ begin
   afs_sel:=0;
   samples:=0;
   CompAdr:='';
-  Caption:=AppHdr+intfac;                          {Init, try MPU6050}
+  Caption:=AppHdr+tab1+intfac;                     {Init, try sensors}
   RefreshSensor;
 end;
 
@@ -510,8 +524,8 @@ begin
       gridReg.Canvas.Brush.Color:=gridReg.GridLineColor;
   end;
 
-  if (aCol=0) and (gridReg.RowCount>16) then begin {Not for values}
-    r:=StrToIntDef(gridReg.Cells[2, aRow], 255);   {Mark R/W yellow}
+  if (aCol=0) and (gridReg.RowCount>9) then begin  {Not for values}
+    r:=StrToIntDef(gridReg.Cells[2, aRow], 255);   {Mark R/W green}
     if ((r in rwregs) and (lblChipAdr.Caption=MPUadr)) or
        ((r in rwIST) and (lblChipAdr.Caption=ISTAdr)) or
        ((r in rwHMC) and (lblChipAdr.Caption=HMCAdr)) then begin
@@ -973,6 +987,73 @@ begin
   Close;
 end;
 
+procedure TForm1.btnAS5RegClick(Sender: TObject);  {AS5600 register only}
+var
+  i, b, x: byte;
+
+begin
+  gridReg.RowCount:=19;
+  CommonRegHdr;
+  gridReg.Cells[0, 1]:='Conf ZMO';
+  gridReg.Cells[0, 2]:='Conf ZPOS_H';
+  gridReg.Cells[0, 3]:='Conf ZPOS_L';
+  gridReg.Cells[0, 4]:='Conf MPOS_H';
+  gridReg.Cells[0, 5]:='CONF MPOS_L';
+  gridReg.Cells[0, 6]:='CONF MANG_H';
+  gridReg.Cells[0, 7]:='CONF MANG_L';
+  gridReg.Cells[0, 8]:='CONF_H';
+  gridReg.Cells[0, 9]:='CONF_L';
+  gridReg.Cells[0, 10]:='RAW_ANGLE_H';
+  gridReg.Cells[0, 11]:='RAW_ANGLE_L';
+  gridReg.Cells[0, 12]:='ANGLE_H';
+  gridReg.Cells[0, 13]:='ANGLE_L';
+  gridReg.Cells[0, 14]:='STATUS';
+  gridReg.Cells[0, 15]:='AGC';
+  gridReg.Cells[0, 16]:='MAGNITUDE_H';
+  gridReg.Cells[0, 17]:='MAGNITUDE_L';
+  gridReg.Cells[0, 18]:='BURN';                    {Burn_Angle=$80, Burn_Setting=$40}
+
+  for i:=0 to 8 do begin
+    b:=GetReg(AS5adr, i);                          {Configuration registers}
+    x:=i+1;
+    gridReg.Cells[1, x]:=IntToHex(i, 2);
+    gridReg.Cells[2, x]:=Format(df, [i]);
+    gridReg.Cells[4, x]:=IntToBin(b, 8);
+    gridReg.Cells[5, x]:=IntToHex(b, 2);
+    gridReg.Cells[6, x]:=Format(df, [b]);
+  end;
+  for i:=12 to 15 do begin                         {Output registers}
+    b:=GetReg(AS5adr, i);
+    x:=i-2;
+    gridReg.Cells[1, x]:=IntToHex(i, 2);
+    gridReg.Cells[2, x]:=Format(df, [i]);
+    gridReg.Cells[4, x]:=IntToBin(b, 8);
+    gridReg.Cells[5, x]:=IntToHex(b, 2);
+    gridReg.Cells[6, x]:=Format(df, [b]);
+  end;
+  b:=GetReg(AS5adr, 11);                           {Status registers}
+  gridReg.Cells[1, 14]:='0B';
+  gridReg.Cells[2, 14]:='11';
+  gridReg.Cells[4, 14]:=IntToBin(b, 8);
+  gridReg.Cells[5, 14]:=IntToHex(b, 2);
+  gridReg.Cells[6, 14]:=Format(df, [b]);
+  for i:=26 to 28 do begin                         {AGC, Magnitude}
+    b:=GetReg(AS5adr, i);
+    x:=i-11;
+    gridReg.Cells[1, x]:=IntToHex(i, 2);
+    gridReg.Cells[2, x]:=Format(df, [i]);
+    gridReg.Cells[4, x]:=IntToBin(b, 8);
+    gridReg.Cells[5, x]:=IntToHex(b, 2);
+    gridReg.Cells[6, x]:=Format(df, [b]);
+  end;
+  b:=GetReg(AS5adr, 255);                          {Burn_Angle=$80, Burn_Setting=$40}
+  gridReg.Cells[1, 18]:='FF';
+  gridReg.Cells[2, 18]:='255';
+  gridReg.Cells[4, 18]:=IntToBin(b, 8);
+  gridReg.Cells[5, 18]:=IntToHex(b, 2);
+  gridReg.Cells[6, 18]:=Format(df, [b]);
+end;
+
 procedure TForm1.btnISTReadClick(Sender: TObject);
 var
   b, i: byte;
@@ -988,9 +1069,9 @@ begin
     ISTRegHdr;
     SetReg(ISTAdr, 10, 1);                         {Single measurement mode for temp}
     lblTemp.Caption:=FormatFloat(tf, GetRegWle(ISTAdr, $1C)/1000)+'°C';
-    ISTreset;                                        {Control register2 Soft reset}
+    ISTreset;                                      {Control register2 Soft reset}
     if cbISTsingle.Checked then
-      SetReg(ISTAdr, 10, 1);                         {Single measurement mode}
+      SetReg(ISTAdr, 10, 1);                       {Single measurement mode}
     if cbISTdren.Checked then
       SetReg(ISTAdr, 11, 8);                         {DREN}
     if cbISTSTR.Checked then

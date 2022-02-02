@@ -569,6 +569,26 @@ object Form1: TForm1
         Caption = 'I²C devices'
         ParentColor = False
       end
+      object gbAS5: TGroupBox
+        Left = 456
+        Height = 121
+        Top = 320
+        Width = 145
+        Caption = 'AS5600'
+        ClientHeight = 100
+        ClientWidth = 143
+        TabOrder = 6
+        object btnAS5Reg: TButton
+          Left = 16
+          Height = 25
+          Hint = 'Read register from AS5600'
+          Top = 8
+          Width = 112
+          Caption = 'AS5600 Reg'
+          OnClick = btnAS5RegClick
+          TabOrder = 0
+        end
+      end
     end
   end
   object lblTemp: TLabel

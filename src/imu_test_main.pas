@@ -1,3 +1,19 @@
+{********************************************************}
+{                                                        }
+{     Test common sensors on I²C bus at Raspberry PI     }
+{                                                        }
+{       Copyright (c) 2019         Helmut Elsner         }
+{                                                        }
+{       Compiler: FPC 3.2.2   /    Lazarus 2.2.0         }
+{                                                        }
+{ Pascal programmers tend to plan ahead, they think      }
+{ before they type. We type a lot because of Pascal      }
+{ verboseness, but usually our code is right from the    }
+{ start. We end up typing less because we fix less bugs. }
+{           [Jorge Aldo G. de F. Junior]                 }
+{********************************************************}
+
+
 (*
 MPU6050 am Raspberry Pi
 
@@ -55,7 +71,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, Grids,
-  ExtCtrls, ComCtrls, TAGraph, TASources, TASeries, strutils, mpu_ctrl;
+  ExtCtrls, ComCtrls, MKnob, TAGraph, TASources, TASeries, strutils, mpu_ctrl;
 
 type
 
@@ -76,9 +92,17 @@ type
     btnStop: TButton;
     btnWrZero: TButton;
     btnScan: TButton;
+    btnADCstart: TButton;
+    btnADCstop: TButton;
+    btnSinus: TButton;
     cbISTdren: TCheckBox;
     cbISTsingle: TCheckBox;
     cbISTSTR: TCheckBox;
+    chADC: TChart;
+    ADCin0: TLineSeries;
+    ADCin1: TLineSeries;
+    ADCin2: TLineSeries;
+    ADCin3: TLineSeries;
     chGyro: TChart;
     chAcc: TChart;
     chMag: TChart;
@@ -102,6 +126,7 @@ type
     gbAS5: TGroupBox;
     Label1: TLabel;
     Label2: TLabel;
+    lblDAC: TLabel;
     lblScan: TLabel;
     lblST: TLabel;
     leDec: TLabeledEdit;
@@ -114,10 +139,14 @@ type
     lblChipAdr: TLabel;
     lblAddr: TLabel;
     ListChartSource1: TListChartSource;
+    knDAC: TmKnob;
     PageControl: TPageControl;
     rgISTtimer: TRadioGroup;
     rgMPUTimer: TRadioGroup;
     SaveDialog: TSaveDialog;
+    gridADC: TStringGrid;
+    TimerADC: TTimer;
+    tsADC: TTabSheet;
     TimerST: TTimer;
     tsMag: TTabSheet;
     TimerIST: TTimer;
@@ -126,6 +155,8 @@ type
     tsTable: TTabSheet;
     tsChartG: TTabSheet;
     TimerMPU: TTimer;
+    procedure btnADCstartClick(Sender: TObject);
+    procedure btnADCstopClick(Sender: TObject);
     procedure btnAS5RegClick(Sender: TObject);
     procedure btnCloseClick(Sender: TObject);
     procedure btnISTReadClick(Sender: TObject);
@@ -135,6 +166,7 @@ type
     procedure btnSaveClick(Sender: TObject);
     procedure btnScanClick(Sender: TObject);
     procedure btnSelftestClick(Sender: TObject);
+    procedure btnSinusClick(Sender: TObject);
     procedure btnStopClick(Sender: TObject);
     procedure btnAddSlaveClick(Sender: TObject);
     procedure btnWrAdrClick(Sender: TObject);
@@ -143,15 +175,19 @@ type
     procedure edAdrChange(Sender: TObject);
     procedure edValueChange(Sender: TObject);
     procedure FormCreate(Sender: TObject);
+    procedure gridADCMouseMove(Sender: TObject; Shift: TShiftState; X,
+      Y: Integer);
     procedure gridRegPrepareCanvas(sender: TObject; aCol, aRow: Integer;
       aState: TGridDrawState);
+    procedure knDACChange(Sender: TObject; AValue: Longint);
     procedure lblAddrClick(Sender: TObject);
     procedure leBinKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure leDecKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure leHexKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure rgISTtimerClick(Sender: TObject);
     procedure rgMPUTimerClick(Sender: TObject);
-    procedure TimerMPUTimer(Sender: TObject);        {Cyclic read register}
+    procedure TimerADCTimer(Sender: TObject);
+    procedure TimerMPUTimer(Sender: TObject);     {Cyclic read register}
     procedure TimerISTTimer(Sender: TObject);
     procedure TimerSTTimer(Sender: TObject);
   private
@@ -162,8 +198,10 @@ type
     procedure ISTRegHdr;                          {Header IST8310 register}
     procedure HMCRegHdr;                          {Header HMC5883 register}
     procedure ISTValHdr;
+    procedure DACValHdr;                          {DAC header for value dump}
     procedure SetTimer;
     procedure RefreshSensor;
+    procedure SetVolt(w: byte);                   {Send voltage to DAC}
   public
   end;
 
@@ -217,6 +255,21 @@ begin
   gridReg.Cells[5, 0]:='Unit';
   gridReg.Cells[6, 0]:='Info';
   gridReg.EndUpdate;
+end;
+
+procedure TForm1.DACValHdr;                        {DAC header for value dump}
+begin
+  gridADC.BeginUpdate;
+  gridADC.Cells[0, 0]:='Channel';
+  gridADC.Cells[1, 0]:='Raw hex';
+  gridADC.Cells[2, 0]:='Raw dec';
+  gridADC.Cells[3, 0]:='Voltage';
+  gridADC.Cells[0, 1]:='AIN0';                     {LDR}
+  gridADC.Cells[0, 2]:='AIN1';                     {Temp}
+  gridADC.Cells[0, 3]:='AIN2';                     {frei}
+  gridADC.Cells[0, 4]:='AIN3';                     {Poti}
+  gridADC.Cells[0, 5]:='AOUT';                     {DAC}
+  gridADC.EndUpdate;
 end;
 
 procedure TForm1.MPURegHdr;                        {Header and register names}
@@ -407,6 +460,7 @@ procedure TForm1.RefreshSensor;                    {Check again if MPU is availa
 var
   i: integer;
   ist: boolean;
+  adr: byte;
 
 begin
   btnISTRead.Enabled:=false;                       {Gray out all buttons}
@@ -422,6 +476,7 @@ begin
   gbMPU6050.Enabled:=false;
   gbAS5.Enabled:=false;
   ist:=false;
+  knDac.Enabled:=false;
 
   lblChipAdr.Caption:='Nothing found';
   for i:=0 to MaxSamples do begin
@@ -434,6 +489,10 @@ begin
     chMagLineX.AddXY(i, 0);
     chMagLineY.AddXY(i, 0);
     chMagLineZ.AddXY(i, 0);
+    ADCin0.AddXY(i, 0);
+    ADCin1.AddXY(i, 0);
+    ADCin2.AddXY(i, 0);
+    ADCin3.AddXY(i, 0);
   end;
   samples:=0;
 
@@ -475,6 +534,22 @@ begin
       CompAdr:=AS5Adr;
   end;
 
+  tsADC.Tag:=XtoByte(ADCadr);
+  for i:=0 to 7 do begin
+    if GetAdrStrADC(hexidc+IntToHex(tsADC.Tag+i, 2)) then begin
+      tsADC.Tag:=tsADC.Tag+i;
+      knDac.Enabled:=true;
+      if CompAdr<>'' then
+        CompAdr:=CompAdr+tab1+hexidc+IntToHex(tsADC.Tag, 2)
+      else
+        CompAdr:=hexidc+IntToHex(tsADC.Tag, 2);
+      SetVolt(0);
+      lblChipAdr.Caption:=CompAdr;
+      caption:=AppHdr+tab1+AdrToChip(hexidc+IntToHex(tsADC.Tag, 2));
+      exit;
+    end;
+  end;
+
   if GetAdrStrMPU then begin
     lblChipAdr.Caption:=MPUadr;
     caption:=AppHdr+AdrToChip(MPUadr);
@@ -501,6 +576,7 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);      {Init, settings}
 begin
   SetTimer;
+  btnSinus.Tag:=0;
   edAdr.Color:=clRW;
   btnWriteTable.Enabled:=false;
   fs_sel:=0;                                       {Default scale factors}
@@ -509,7 +585,38 @@ begin
   CompAdr:='';
   Caption:=AppHdr+tab1+intfac;                     {Init, try sensors}
   RefreshSensor;
+  DACValHdr;                                       {DAC header for value dump}
 end;
+
+procedure TForm1.gridADCMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
+var
+  sp, zl: integer;                                 {Spalte und Zeile}
+
+begin
+  zl:=0;
+  sp:=0;
+  gridADC.MouseToCell(x, y, sp, zl);               {Zelle unter Maus finden}
+  if sp=0 then begin
+    case zl of
+      1: gridADC.Hint:='AIN0 (LDR) yellow';
+      2: gridADC.Hint:='AIN1 (temp) red';
+      3: gridADC.Hint:='AIN2 (free) blue';
+      4: gridADC.Hint:='AIN3 (poti) green';
+    else
+      gridADC.Hint:=gridADC.Cells[sp, zl];
+    end;
+  end else begin
+    if zl=0 then begin
+      gridADC.Hint:=gridADC.Cells[sp, zl];
+    end else begin
+      case sp of
+        1: gridADC.Hint:='$'+gridADC.Cells[sp, zl];
+        2: gridADC.Hint:=gridADC.Cells[sp, zl];
+        3: gridADC.Hint:=gridADC.Cells[sp, zl]+' V';
+      end;
+    end;
+  end;
+ end;
 
 procedure TForm1.gridRegPrepareCanvas(sender: TObject; aCol, aRow: Integer;
   aState: TGridDrawState);
@@ -532,6 +639,21 @@ begin
       gridReg.Canvas.Brush.Color:=clRW;
     end;
   end;
+end;
+
+procedure TForm1.SetVolt(w: byte);
+begin
+  if SetDAC(hexidc+IntToHex(tsADC.Tag, 2), w) then begin
+    gridADC.Cells[2, 5]:=IntToStr(w);
+    gridADC.Cells[1, 5]:=IntToHex(w, 2);
+    gridADC.Cells[3, 5]:=FormatFloat(gf, GetVolt(w));
+  end;
+end;
+
+procedure TForm1.knDACChange(Sender: TObject; AValue: Longint);
+begin
+  if btnSinus.Tag=0 then
+    SetVolt(AValue);
 end;
 
 procedure TForm1.lblAddrClick(Sender: TObject);
@@ -567,8 +689,10 @@ procedure TForm1.SetTimer;
 begin
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
+  TimerADC.Enabled:=false;
   TimerMPU.Interval:=StrToInt(rgMPUTimer.Items[rgMPUTimer.ItemIndex]);
   TimerIST.Interval:=StrToInt(rgISTTimer.Items[rgISTTimer.ItemIndex]);
+  TimerADC.Interval:=StrToInt(rgISTTimer.Items[rgISTTimer.ItemIndex]);
 end;
 
 procedure TForm1.rgISTtimerClick(Sender: TObject);
@@ -579,6 +703,51 @@ end;
 procedure TForm1.rgMPUTimerClick(Sender: TObject);
 begin
   SetTimer;
+end;
+
+procedure TForm1.TimerADCTimer(Sender: TObject);
+var
+  w: byte;
+  adr: string;
+
+begin
+  if btnSinus.Tag=1 then begin                     {Sinus über DAC ausgeben}
+    w:=round(sin(samples/5)*127+128);
+    SetVolt(w);
+  end;
+  adr:=hexidc+IntToHex(tsADC.Tag, 2);
+  gridADC.BeginUpdate;
+
+  w:=ReadADC(adr, 0);
+  gridADC.Cells[1, 1]:=IntToHex(w, 2);
+  gridADC.Cells[2, 1]:=IntToStr(w);
+  gridADC.Cells[3, 1]:=FormatFloat(gf, GetVolt(w));
+  ADCin0.SetYValue(samples, GetVolt(w));
+
+  w:=ReadADC(adr, 1);
+  gridADC.Cells[1, 2]:=IntToHex(w, 2);
+  gridADC.Cells[2, 2]:=IntToStr(w);
+  gridADC.Cells[3, 2]:=FormatFloat(gf, GetVolt(w));
+  ADCin1.SetYValue(samples, GetVolt(w));
+
+  w:=ReadADC(adr, 2);
+  gridADC.Cells[1, 3]:=IntToHex(w, 2);
+  gridADC.Cells[2, 3]:=IntToStr(w);
+  gridADC.Cells[3, 3]:=FormatFloat(gf, GetVolt(w));
+  ADCin2.SetYValue(samples, GetVolt(w));
+
+  w:=ReadADC(adr, 3);
+  gridADC.Cells[1, 4]:=IntToHex(w, 2);
+  gridADC.Cells[2, 4]:=IntToStr(w);
+  gridADC.Cells[3, 4]:=FormatFloat(gf, GetVolt(w));
+  ADCin3.SetYValue(samples, GetVolt(w));
+
+  gridADC.EndUpdate;
+
+
+  inc(samples);
+  if samples>MaxSamples then
+    samples:=0;
 end;
 
 procedure TForm1.btnMPUReadClick(Sender: TObject); {Read all register}
@@ -1054,6 +1223,20 @@ begin
   gridReg.Cells[6, 18]:=Format(df, [b]);
 end;
 
+procedure TForm1.btnADCstopClick(Sender: TObject);
+begin
+  TimerADC.Enabled:=false;
+  btnSinus.Tag:=0;
+  knDAC.Enabled:=true;
+end;
+
+procedure TForm1.btnADCstartClick(Sender: TObject);
+begin
+  btnSinus.Tag:=0;
+  knDAC.Enabled:=true;
+  TimerADC.Enabled:=true;
+end;
+
 procedure TForm1.btnISTReadClick(Sender: TObject);
 var
   b, i: byte;
@@ -1190,6 +1373,13 @@ begin
     TimerST.Enabled:=true;
     TimerMPU.Enabled:=true;
   end;
+end;
+
+procedure TForm1.btnSinusClick(Sender: TObject);
+begin
+  TimerADC.Enabled:=true;
+  btnSinus.Tag:=1;
+  knDAC.Enabled:=false;
 end;
 
 procedure TForm1.btnStopClick(Sender: TObject);    {Stop all cyclic work}

@@ -95,6 +95,7 @@ type
     btnADCstart: TButton;
     btnADCstop: TButton;
     btnSinus: TButton;
+    btnADCSingle: TButton;
     cbISTdren: TCheckBox;
     cbISTsingle: TCheckBox;
     cbISTSTR: TCheckBox;
@@ -141,6 +142,7 @@ type
     ListChartSource1: TListChartSource;
     knDAC: TmKnob;
     PageControl: TPageControl;
+    rgADCChan: TRadioGroup;
     rgISTtimer: TRadioGroup;
     rgMPUTimer: TRadioGroup;
     SaveDialog: TSaveDialog;
@@ -155,6 +157,7 @@ type
     tsTable: TTabSheet;
     tsChartG: TTabSheet;
     TimerMPU: TTimer;
+    procedure btnADCSingleClick(Sender: TObject);
     procedure btnADCstartClick(Sender: TObject);
     procedure btnADCstopClick(Sender: TObject);
     procedure btnAS5RegClick(Sender: TObject);
@@ -202,6 +205,7 @@ type
     procedure SetTimer;
     procedure RefreshSensor;
     procedure SetVolt(w: byte);                   {Send voltage to DAC}
+    procedure ADCstop;                            {Stop cyclic measuremen}
   public
   end;
 
@@ -460,7 +464,6 @@ procedure TForm1.RefreshSensor;                    {Check again if MPU is availa
 var
   i: integer;
   ist: boolean;
-  adr: byte;
 
 begin
   btnISTRead.Enabled:=false;                       {Gray out all buttons}
@@ -541,8 +544,10 @@ begin
       knDac.Enabled:=true;
       if CompAdr<>'' then
         CompAdr:=CompAdr+tab1+hexidc+IntToHex(tsADC.Tag, 2)
-      else
+      else begin
         CompAdr:=hexidc+IntToHex(tsADC.Tag, 2);
+        lblTemp.Caption:='';
+      end;
       SetVolt(0);
       lblChipAdr.Caption:=CompAdr;
       caption:=AppHdr+tab1+AdrToChip(hexidc+IntToHex(tsADC.Tag, 2));
@@ -576,7 +581,7 @@ end;
 procedure TForm1.FormCreate(Sender: TObject);      {Init, settings}
 begin
   SetTimer;
-  btnSinus.Tag:=0;
+  ADCstop;
   edAdr.Color:=clRW;
   btnWriteTable.Enabled:=false;
   fs_sel:=0;                                       {Default scale factors}
@@ -1223,11 +1228,16 @@ begin
   gridReg.Cells[6, 18]:=Format(df, [b]);
 end;
 
-procedure TForm1.btnADCstopClick(Sender: TObject);
+procedure TForm1.ADCstop;                          {Stop cyclic measuremen}
 begin
   TimerADC.Enabled:=false;
   btnSinus.Tag:=0;
   knDAC.Enabled:=true;
+end;
+
+procedure TForm1.btnADCstopClick(Sender: TObject);
+begin
+  ADCstop;
 end;
 
 procedure TForm1.btnADCstartClick(Sender: TObject);
@@ -1235,6 +1245,21 @@ begin
   btnSinus.Tag:=0;
   knDAC.Enabled:=true;
   TimerADC.Enabled:=true;
+end;
+
+procedure TForm1.btnADCSingleClick(Sender: TObject); {ADC single measurement}
+var
+  i: integer;
+  w: byte;
+
+begin
+  ADCstop;
+  for i:=1 to 4 do
+    gridADC.Cells[3, i]:='';                         {Delete volatage to identify what was changed at single measurement}
+  w:=ReadADC(hexidc+IntToHex(tsADC.Tag, 2), rgADCchan.ItemIndex);
+  gridADC.Cells[1, rgADCchan.ItemIndex+1]:=IntToHex(w, 2);
+  gridADC.Cells[2, rgADCchan.ItemIndex+1]:=IntToStr(w);
+  gridADC.Cells[3, rgADCchan.ItemIndex+1]:=FormatFloat(gf, GetVolt(w));
 end;
 
 procedure TForm1.btnISTReadClick(Sender: TObject);
@@ -1388,6 +1413,7 @@ begin
   TimerIST.Enabled:=false;
   TimerST.Enabled:=false;                          {Self test timer}
   btnWrAdr.Enabled:=true;
+  ADCstop;
 end;
 
 procedure TForm1.btnAddSlaveClick(Sender: TObject);

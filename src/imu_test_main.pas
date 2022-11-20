@@ -227,6 +227,7 @@ const
   clRW=clMoneyGreen;
   appHdr='Read/write register from';
   tab1=' ';
+  tempunit='°C';
 
 implementation
 
@@ -367,7 +368,7 @@ begin
   gridReg.Cells[5, 1]:='mG';
   gridReg.Cells[5, 2]:=gridReg.Cells[5, 1];
   gridReg.Cells[5, 3]:=gridReg.Cells[5, 1];
-  gridReg.Cells[5, 4]:='°C';
+  gridReg.Cells[5, 4]:=tempunit;
   gridReg.Cells[5, 5]:='°/s';
   gridReg.Cells[5, 6]:=gridReg.Cells[5, 5];
   gridReg.Cells[5, 7]:=gridReg.Cells[5, 5];
@@ -375,7 +376,7 @@ begin
   gridReg.Cells[6, 1]:='Acc scale';
   gridReg.Cells[6, 2]:=afsToStr(afs_sel);
   gridReg.Cells[6, 3]:='';
-  gridReg.Cells[6, 4]:='t/340+36.53°C';
+  gridReg.Cells[6, 4]:='t/340+36.53'+tempunit;
   gridReg.Cells[6, 5]:='Gyro scale';
   gridReg.Cells[6, 6]:=fsToStr(fs_sel);
   gridReg.Cells[6, 7]:='';
@@ -452,8 +453,8 @@ begin
     gridReg.Cells[5, 1]:='mGauss';
     gridReg.Cells[6, 4]:='n/a'
   end else begin
-    gridReg.Cells[5, 4]:='°C';
-    gridReg.Cells[6, 4]:='t/1000 °C';
+    gridReg.Cells[5, 4]:=tempunit;
+    gridReg.Cells[6, 4]:='t/1000 '+tempunit;
   end;
   gridReg.Cells[5, 2]:=gridReg.Cells[5, 1];
   gridReg.Cells[5, 3]:=gridReg.Cells[5, 1];
@@ -466,6 +467,9 @@ var
   ist: boolean;
 
 begin
+  lblTemp.Caption:='';
+  lblChipAdr.Caption:='Nothing found';
+
   btnISTRead.Enabled:=false;                       {Gray out all buttons}
   btnISTcyc.Enabled:=false;
   btnMPURead.Enabled:=false;
@@ -481,7 +485,6 @@ begin
   ist:=false;
   knDac.Enabled:=false;
 
-  lblChipAdr.Caption:='Nothing found';
   for i:=0 to MaxSamples do begin
     chGyroLineX.AddXY(i, 0);
     chGyroLineY.AddXY(i, 0);
@@ -508,7 +511,7 @@ begin
     else
       ISTRegHdr;
     SetReg(ISTAdr, 10, 1);                         {Single measurement mode for temp}
-    lblTemp.Caption:=FormatFloat(tf, GetRegWle(ISTAdr, $1C)/1000)+'°C';
+    lblTemp.Caption:=FormatFloat(tf, GetRegWle(ISTAdr, $1C)/1000)+tempunit;
     btnISTRead.Enabled:=true;
     btnISTcyc.Enabled:=true;
     btnWrZero.Enabled:=true;
@@ -540,13 +543,12 @@ begin
   tsADC.Tag:=XtoByte(ADCadr);
   for i:=0 to 7 do begin
     if GetAdrStrADC(hexidc+IntToHex(tsADC.Tag+i, 2)) then begin
-      tsADC.Tag:=tsADC.Tag+i;
+      tsADC.Tag:=tsADC.Tag+i;                      {Save valid address}
       knDac.Enabled:=true;
       if CompAdr<>'' then
         CompAdr:=CompAdr+tab1+hexidc+IntToHex(tsADC.Tag, 2)
       else begin
         CompAdr:=hexidc+IntToHex(tsADC.Tag, 2);
-        lblTemp.Caption:='';
       end;
       SetVolt(0);
       lblChipAdr.Caption:=CompAdr;
@@ -588,6 +590,7 @@ begin
   afs_sel:=0;
   samples:=0;
   CompAdr:='';
+  lblTemp.Caption:='';
   Caption:=AppHdr+tab1+intfac;                     {Init, try sensors}
   RefreshSensor;
   DACValHdr;                                       {DAC header for value dump}
@@ -880,7 +883,7 @@ begin
     gridReg.Cells[1, 4]:=IntToHex(varr[3], 4);
     gridReg.Cells[2, 4]:=IntToStr(varr[3]);
     gridReg.Cells[4, 4]:=FormatFloat(tf, ConvTemp(varr[3]));
-    lblTemp.Caption:=gridReg.Cells[4, 4]+'°C';     {Temperature}
+    lblTemp.Caption:=gridReg.Cells[4, 4]+tempunit; {Temperature}
     for i:=4 to 6 do begin                         {Gyroscope}
       gridReg.Cells[1, i+1]:=IntToHex(varr[i], 4);
       gridReg.Cells[2, i+1]:=IntToStr(varr[i]);
@@ -889,7 +892,7 @@ begin
     gridReg.EndUpdate;
 
   end else begin
-    lblTemp.Caption:=FormatFloat(tf, ConvTemp(varr[3]))+'°C';
+    lblTemp.Caption:=FormatFloat(tf, ConvTemp(varr[3]))+tempunit;
   end;
 
   if PageControl.ActivePage=tsChartG then begin    {Gyroscope}
@@ -977,7 +980,7 @@ begin
   end;
 
   if CompAdr=ISTadr then
-    lblTemp.Caption:=FormatFloat(tf, w/1000)+'°C';
+    lblTemp.Caption:=FormatFloat(tf, w/1000)+tempunit;
 
   inc(samples);
   if samples>MaxSamples then
@@ -1276,7 +1279,7 @@ begin
   if CompAdr=ISTadr then begin
     ISTRegHdr;
     SetReg(ISTAdr, 10, 1);                         {Single measurement mode for temp}
-    lblTemp.Caption:=FormatFloat(tf, GetRegWle(ISTAdr, $1C)/1000)+'°C';
+    lblTemp.Caption:=FormatFloat(tf, GetRegWle(ISTAdr, $1C)/1000)+tempunit;
     ISTreset;                                      {Control register2 Soft reset}
     if cbISTsingle.Checked then
       SetReg(ISTAdr, 10, 1);                       {Single measurement mode}

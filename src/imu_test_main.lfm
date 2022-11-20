@@ -100,9 +100,9 @@ object Form1: TForm1
     Height = 494
     Top = 80
     Width = 664
-    ActivePage = tsADC
+    ActivePage = tsTools
     Anchors = [akTop, akLeft, akRight, akBottom]
-    TabIndex = 5
+    TabIndex = 4
     TabOrder = 6
     object tsTable: TTabSheet
       Caption = 'Table'
@@ -277,7 +277,7 @@ object Form1: TForm1
         Top = 8
         Width = 288
         Caption = 'Overwrite register'
-        ClientHeight = 223
+        ClientHeight = 202
         ClientWidth = 286
         TabOrder = 0
         object btnWrAdr: TButton
@@ -403,7 +403,7 @@ object Form1: TForm1
         Top = 136
         Width = 288
         Caption = 'MPU6050 options'
-        ClientHeight = 95
+        ClientHeight = 74
         ClientWidth = 286
         TabOrder = 2
         object btnAddSlave: TButton
@@ -508,7 +508,7 @@ object Form1: TForm1
         Top = 240
         Width = 137
         Caption = 'Byte calculator'
-        ClientHeight = 199
+        ClientHeight = 178
         ClientWidth = 135
         TabOrder = 4
         object leDec: TLabeledEdit
@@ -737,9 +737,9 @@ object Form1: TForm1
     end
   end
   object lblTemp: TLabel
-    Left = 560
+    Left = 600
     Height = 22
-    Top = 53
+    Top = 51
     Width = 16
     Caption = '°C'
     ParentColor = False

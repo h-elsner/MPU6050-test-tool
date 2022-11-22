@@ -7,5 +7,7 @@ With latest version more sensors are supported:
 - HMC5883 (Magnetometer)
 - AS5600 (Contactless potentiometer
 - PFC8591 (4-channel ADC & 1-channel DAC)
+
 ![Screenshot](hmc_regs.png)
-This programm uses latest unit "mpu_ctrl.pas" from common_units
+
+This programm uses latest unit "mpu_ctrl.pas" from repository "common_units"

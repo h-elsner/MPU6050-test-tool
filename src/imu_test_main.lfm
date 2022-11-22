@@ -1,14 +1,15 @@
 object Form1: TForm1
-  Left = 1145
+  Left = 1078
   Height = 582
-  Top = 146
-  Width = 687
+  Top = 159
+  Width = 840
   Caption = 'Form1'
   ClientHeight = 582
-  ClientWidth = 687
+  ClientWidth = 840
   Constraints.MinHeight = 360
-  Constraints.MinWidth = 680
+  Constraints.MinWidth = 840
   KeyPreview = True
+  OnActivate = FormActivate
   OnCreate = FormCreate
   Position = poDefaultPosOnly
   ShowHint = True
@@ -35,7 +36,7 @@ object Form1: TForm1
     TabOrder = 3
   end
   object btnSave: TButton
-    Left = 424
+    Left = 577
     Height = 25
     Hint = 'Save table to CSV file'
     Top = 16
@@ -66,7 +67,7 @@ object Form1: TForm1
     TabOrder = 2
   end
   object btnClose: TButton
-    Left = 560
+    Left = 713
     Height = 25
     Hint = 'Close program'
     Top = 16
@@ -99,20 +100,21 @@ object Form1: TForm1
     Left = 16
     Height = 494
     Top = 80
-    Width = 664
+    Width = 817
     ActivePage = tsTools
     Anchors = [akTop, akLeft, akRight, akBottom]
-    TabIndex = 4
+    TabIndex = 5
     TabOrder = 6
+    OnChange = PageControlChange
     object tsTable: TTabSheet
       Caption = 'Table'
       ClientHeight = 446
-      ClientWidth = 654
+      ClientWidth = 807
       object gridReg: TStringGrid
         Left = 0
         Height = 446
         Top = 0
-        Width = 654
+        Width = 807
         Align = alClient
         ColCount = 7
         Flat = True
@@ -135,12 +137,12 @@ object Form1: TForm1
     object tsChartA: TTabSheet
       Caption = 'Chart Accel'
       ClientHeight = 446
-      ClientWidth = 654
+      ClientWidth = 807
       object chAcc: TChart
         Left = 0
         Height = 446
         Top = 0
-        Width = 654
+        Width = 807
         AxisList = <        
           item
             Marks.LabelBrush.Style = bsClear
@@ -180,12 +182,12 @@ object Form1: TForm1
     object tsChartG: TTabSheet
       Caption = 'Chart Gyro'
       ClientHeight = 446
-      ClientWidth = 654
+      ClientWidth = 807
       object chGyro: TChart
         Left = 0
         Height = 446
         Top = 0
-        Width = 654
+        Width = 807
         AxisList = <        
           item
             Marks.LabelBrush.Style = bsClear
@@ -225,12 +227,12 @@ object Form1: TForm1
     object tsMag: TTabSheet
       Caption = 'Chart Mag'
       ClientHeight = 446
-      ClientWidth = 654
+      ClientWidth = 807
       object chMag: TChart
         Left = 0
         Height = 446
         Top = 0
-        Width = 654
+        Width = 807
         AxisList = <        
           item
             Marks.LabelBrush.Style = bsClear
@@ -267,10 +269,155 @@ object Form1: TForm1
         end
       end
     end
+    object tsADC: TTabSheet
+      AutoSize = True
+      Caption = 'ADC PCF8591'
+      ClientHeight = 446
+      ClientWidth = 807
+      object gridADC: TStringGrid
+        Left = 0
+        Height = 184
+        Top = 0
+        Width = 304
+        ColCount = 4
+        RowCount = 6
+        ScrollBars = ssNone
+        TabOrder = 0
+        OnMouseMove = gridADCMouseMove
+        ColWidths = (
+          72
+          78
+          76
+          75
+        )
+      end
+      object knDAC: TmKnob
+        Left = 312
+        Height = 91
+        Top = 40
+        Width = 84
+        Position = 0
+        Max = 255
+        OnChange = knDACChange
+      end
+      object chADC: TChart
+        Left = 4
+        Height = 248
+        Top = 192
+        Width = 805
+        AxisList = <        
+          item
+            Marks.LabelBrush.Style = bsClear
+            Minors = <>
+            Title.LabelFont.Orientation = 900
+            Title.Visible = True
+            Title.Caption = 'Voltage [V]'
+            Title.LabelBrush.Style = bsClear
+          end        
+          item
+            Alignment = calBottom
+            Marks.LabelBrush.Style = bsClear
+            Minors = <>
+            Title.Visible = True
+            Title.Caption = 'Samples'
+            Title.LabelBrush.Style = bsClear
+          end>
+        Title.Text.Strings = (
+          'TAChart'
+        )
+        Anchors = [akTop, akLeft, akRight, akBottom]
+        object ADCin0: TLineSeries
+          LinePen.Color = 46079
+        end
+        object ADCin1: TLineSeries
+          LinePen.Color = clRed
+        end
+        object ADCin2: TLineSeries
+          LinePen.Color = clNavy
+        end
+        object ADCin3: TLineSeries
+          LinePen.Color = clGreen
+        end
+      end
+      object lblDAC: TLabel
+        Left = 312
+        Height = 22
+        Top = 152
+        Width = 82
+        Caption = 'Output DAC'
+        ParentColor = False
+      end
+      object btnADCstart: TButton
+        Left = 416
+        Height = 25
+        Hint = 'Start cyclic measurement on all 4 channels'
+        Top = 72
+        Width = 75
+        Caption = 'Start'
+        OnClick = btnADCstartClick
+        TabOrder = 3
+      end
+      object btnADCstop: TButton
+        Left = 416
+        Height = 25
+        Hint = 'Stop cyclic measurement'
+        Top = 152
+        Width = 75
+        Caption = 'Stop'
+        OnClick = btnADCstopClick
+        TabOrder = 4
+      end
+      object btnSinus: TButton
+        Left = 416
+        Height = 25
+        Hint = 'Send sinus waveform to DAC'
+        Top = 112
+        Width = 75
+        Caption = 'Sinus'
+        OnClick = btnSinusClick
+        TabOrder = 5
+      end
+      object rgADCChan: TRadioGroup
+        Left = 512
+        Height = 153
+        Hint = 'Select ADC channel for single measurement'
+        Top = 24
+        Width = 136
+        AutoFill = True
+        Caption = 'ADC Channel'
+        ChildSizing.LeftRightSpacing = 6
+        ChildSizing.EnlargeHorizontal = crsHomogenousChildResize
+        ChildSizing.EnlargeVertical = crsHomogenousChildResize
+        ChildSizing.ShrinkHorizontal = crsScaleChilds
+        ChildSizing.ShrinkVertical = crsScaleChilds
+        ChildSizing.Layout = cclLeftToRightThenTopToBottom
+        ChildSizing.ControlsPerLine = 1
+        ClientHeight = 130
+        ClientWidth = 134
+        ItemIndex = 2
+        Items.Strings = (
+          'AIN0 (Yellow)'
+          'AIN1 (red)'
+          'AIN2 (blue)'
+          'AIN3 (green)'
+        )
+        TabOrder = 6
+      end
+      object btnADCSingle: TButton
+        Left = 416
+        Height = 25
+        Hint = 'Read value from selected ADC channel'
+        Top = 32
+        Width = 75
+        Caption = 'Single'
+        OnClick = btnADCSingleClick
+        TabOrder = 7
+      end
+    end
     object tsTools: TTabSheet
       Caption = 'Tools/Settings'
       ClientHeight = 446
-      ClientWidth = 654
+      ClientWidth = 807
       object gbWrReg: TGroupBox
         Left = 16
         Height = 225
@@ -396,6 +543,29 @@ object Form1: TForm1
           Caption = 'Self test'
           TabOrder = 2
         end
+        object rgMag: TRadioGroup
+          Left = 184
+          Height = 56
+          Top = 32
+          Width = 97
+          AutoFill = True
+          Caption = 'Mag'
+          ChildSizing.LeftRightSpacing = 6
+          ChildSizing.EnlargeHorizontal = crsHomogenousChildResize
+          ChildSizing.EnlargeVertical = crsHomogenousChildResize
+          ChildSizing.ShrinkHorizontal = crsScaleChilds
+          ChildSizing.ShrinkVertical = crsScaleChilds
+          ChildSizing.Layout = cclLeftToRightThenTopToBottom
+          ChildSizing.ControlsPerLine = 1
+          ClientHeight = 33
+          ClientWidth = 95
+          ItemIndex = 1
+          Items.Strings = (
+            'HMC'
+            'IST'
+          )
+          TabOrder = 3
+        end
       end
       object gbMPU6050: TGroupBox
         Left = 312
@@ -450,7 +620,7 @@ object Form1: TForm1
           Top = 8
           Width = 112
           AutoFill = True
-          Caption = 'MC6050'
+          Caption = 'MPU6050'
           ChildSizing.LeftRightSpacing = 6
           ChildSizing.EnlargeHorizontal = crsHomogenousChildResize
           ChildSizing.EnlargeVertical = crsHomogenousChildResize
@@ -478,7 +648,7 @@ object Form1: TForm1
           Top = 8
           Width = 112
           AutoFill = True
-          Caption = 'IST8310/ADC'
+          Caption = 'Other sensors'
           ChildSizing.LeftRightSpacing = 6
           ChildSizing.EnlargeHorizontal = crsHomogenousChildResize
           ChildSizing.EnlargeVertical = crsHomogenousChildResize
@@ -502,7 +672,7 @@ object Form1: TForm1
         end
       end
       object gbHexBin: TGroupBox
-        Left = 312
+        Left = 611
         Height = 201
         Hint = 'Press ENTER to convert'
         Top = 240
@@ -551,33 +721,15 @@ object Form1: TForm1
           OnKeyUp = leBinKeyUp
         end
       end
-      object btnScan: TButton
-        Left = 472
-        Height = 25
-        Hint = 'Find active I²C devices'
-        Top = 248
-        Width = 112
-        Caption = 'Scan I²C'
-        OnClick = btnScanClick
-        TabOrder = 5
-      end
-      object lblScan: TLabel
-        Left = 472
-        Height = 22
-        Top = 288
-        Width = 78
-        Caption = 'I²C devices'
-        ParentColor = False
-      end
       object gbAS5: TGroupBox
-        Left = 456
-        Height = 121
-        Top = 320
+        Left = 312
+        Height = 113
+        Top = 240
         Width = 145
         Caption = 'AS5600'
-        ClientHeight = 98
+        ClientHeight = 90
         ClientWidth = 143
-        TabOrder = 6
+        TabOrder = 5
         object btnAS5Reg: TButton
           Left = 16
           Height = 25
@@ -588,159 +740,61 @@ object Form1: TForm1
           OnClick = btnAS5RegClick
           TabOrder = 0
         end
-      end
-    end
-    object tsADC: TTabSheet
-      AutoSize = True
-      Caption = 'ADC PCF8591'
-      ClientHeight = 446
-      ClientWidth = 654
-      object gridADC: TStringGrid
-        Left = 0
-        Height = 184
-        Top = 0
-        Width = 304
-        ColCount = 4
-        RowCount = 6
-        ScrollBars = ssNone
-        TabOrder = 0
-        OnMouseMove = gridADCMouseMove
-        ColWidths = (
-          72
-          78
-          76
-          75
-        )
-      end
-      object knDAC: TmKnob
-        Left = 312
-        Height = 91
-        Top = 40
-        Width = 84
-        Position = 0
-        Max = 255
-        OnChange = knDACChange
-      end
-      object chADC: TChart
-        Left = 4
-        Height = 248
-        Top = 192
-        Width = 652
-        AxisList = <        
-          item
-            Marks.LabelBrush.Style = bsClear
-            Minors = <>
-            Title.LabelFont.Orientation = 900
-            Title.Visible = True
-            Title.Caption = 'Voltage [V]'
-            Title.LabelBrush.Style = bsClear
-          end        
-          item
-            Alignment = calBottom
-            Marks.LabelBrush.Style = bsClear
-            Minors = <>
-            Title.Visible = True
-            Title.Caption = 'Samples'
-            Title.LabelBrush.Style = bsClear
-          end>
-        Title.Text.Strings = (
-          'TAChart'
-        )
-        Anchors = [akTop, akLeft, akRight, akBottom]
-        object ADCin0: TLineSeries
-          LinePen.Color = 46079
-        end
-        object ADCin1: TLineSeries
-          LinePen.Color = clRed
-        end
-        object ADCin2: TLineSeries
-          LinePen.Color = clNavy
-        end
-        object ADCin3: TLineSeries
-          LinePen.Color = clGreen
+        object lblAS5: TLabel
+          Left = 16
+          Height = 22
+          Top = 48
+          Width = 46
+          Caption = 'lblAS5'
+          ParentColor = False
         end
       end
-      object lblDAC: TLabel
-        Left = 312
-        Height = 22
-        Top = 152
-        Width = 82
-        Caption = 'Output DAC'
-        ParentColor = False
-      end
-      object btnADCstart: TButton
-        Left = 416
-        Height = 25
-        Hint = 'Start cyclic measurement on all 4 channels'
-        Top = 72
-        Width = 75
-        Caption = 'Start'
-        OnClick = btnADCstartClick
-        TabOrder = 3
-      end
-      object btnADCstop: TButton
-        Left = 416
-        Height = 25
-        Hint = 'Stop cyclic measurement'
-        Top = 152
-        Width = 75
-        Caption = 'Stop'
-        OnClick = btnADCstopClick
-        TabOrder = 4
-      end
-      object btnSinus: TButton
-        Left = 416
-        Height = 25
-        Hint = 'Send sinus waveform to DAC'
-        Top = 112
-        Width = 75
-        Caption = 'Sinus'
-        OnClick = btnSinusClick
-        TabOrder = 5
-      end
-      object rgADCChan: TRadioGroup
-        Left = 512
-        Height = 153
-        Hint = 'Select ADC channel for single measurement'
-        Top = 24
-        Width = 136
-        AutoFill = True
-        Caption = 'ADC Channel'
-        ChildSizing.LeftRightSpacing = 6
-        ChildSizing.EnlargeHorizontal = crsHomogenousChildResize
-        ChildSizing.EnlargeVertical = crsHomogenousChildResize
-        ChildSizing.ShrinkHorizontal = crsScaleChilds
-        ChildSizing.ShrinkVertical = crsScaleChilds
-        ChildSizing.Layout = cclLeftToRightThenTopToBottom
-        ChildSizing.ControlsPerLine = 1
-        ClientHeight = 130
-        ClientWidth = 134
-        ItemIndex = 2
-        Items.Strings = (
-          'AIN0 (Yellow)'
-          'AIN1 (red)'
-          'AIN2 (blue)'
-          'AIN3 (green)'
-        )
+      object gbScan: TGroupBox
+        Left = 611
+        Height = 225
+        Top = 8
+        Width = 185
+        Caption = 'Scan sensors'
+        ClientHeight = 202
+        ClientWidth = 183
         TabOrder = 6
-      end
-      object btnADCSingle: TButton
-        Left = 416
-        Height = 25
-        Hint = 'Read value from selected ADC channel'
-        Top = 32
-        Width = 75
-        Caption = 'Single'
-        OnClick = btnADCSingleClick
-        TabOrder = 7
+        object btnScan: TButton
+          Left = 8
+          Height = 25
+          Hint = 'Find active I²C devices'
+          Top = 8
+          Width = 112
+          Caption = 'Scan I²C'
+          OnClick = btnScanClick
+          TabOrder = 0
+        end
+        object cgSensors: TCheckGroup
+          Left = 8
+          Height = 150
+          Top = 44
+          Width = 164
+          AutoFill = True
+          Caption = 'Sensors'
+          ChildSizing.LeftRightSpacing = 6
+          ChildSizing.TopBottomSpacing = 6
+          ChildSizing.EnlargeHorizontal = crsHomogenousChildResize
+          ChildSizing.EnlargeVertical = crsHomogenousChildResize
+          ChildSizing.ShrinkHorizontal = crsScaleChilds
+          ChildSizing.ShrinkVertical = crsScaleChilds
+          ChildSizing.Layout = cclLeftToRightThenTopToBottom
+          ChildSizing.ControlsPerLine = 1
+          OnItemClick = cgSensorsItemClick
+          TabOrder = 1
+        end
       end
     end
   end
   object lblTemp: TLabel
-    Left = 600
+    Left = 709
     Height = 22
-    Top = 51
+    Top = 53
     Width = 16
+    Anchors = [akTop, akRight]
     Caption = '°C'
     ParentColor = False
   end
@@ -784,8 +838,8 @@ object Form1: TForm1
   object TimerIST: TTimer
     Enabled = False
     OnTimer = TimerISTTimer
-    Left = 456
-    Top = 288
+    Left = 664
+    Top = 376
   end
   object TimerST: TTimer
     Enabled = False
@@ -800,5 +854,11 @@ object Form1: TForm1
     OnTimer = TimerADCTimer
     Left = 456
     Top = 360
+  end
+  object TimerHMC: TTimer
+    Enabled = False
+    OnTimer = TimerHMCTimer
+    Left = 600
+    Top = 373
   end
 end

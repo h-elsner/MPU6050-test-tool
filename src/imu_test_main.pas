@@ -2,7 +2,7 @@
 {                                                        }
 {     Test common sensors on I²C bus at Raspberry PI     }
 {                                                        }
-{       Copyright (c) 2019         Helmut Elsner         }
+{       Copyright (c) 2019-2022    Helmut Elsner         }
 {                                                        }
 {       Compiler: FPC 3.2.2   /    Lazarus 2.2.0         }
 {                                                        }
@@ -80,6 +80,7 @@ type
   TForm1 = class(TForm)
     btnAddSlave: TButton;
     btnAS5Reg: TButton;
+    btnScan: TButton;
     btnSelftest: TButton;
     btnISTRead: TButton;
     btnISTcyc: TButton;
@@ -91,7 +92,6 @@ type
     btnSave: TButton;
     btnStop: TButton;
     btnWrZero: TButton;
-    btnScan: TButton;
     btnADCstart: TButton;
     btnADCstop: TButton;
     btnSinus: TButton;
@@ -104,6 +104,7 @@ type
     ADCin1: TLineSeries;
     ADCin2: TLineSeries;
     ADCin3: TLineSeries;
+    cgSensors: TCheckGroup;
     chGyro: TChart;
     chAcc: TChart;
     chMag: TChart;
@@ -125,10 +126,11 @@ type
     gbTimer: TGroupBox;
     gbHexBin: TGroupBox;
     gbAS5: TGroupBox;
+    gbScan: TGroupBox;
     Label1: TLabel;
     Label2: TLabel;
+    lblAS5: TLabel;
     lblDAC: TLabel;
-    lblScan: TLabel;
     lblST: TLabel;
     leDec: TLabeledEdit;
     leHex: TLabeledEdit;
@@ -142,11 +144,13 @@ type
     ListChartSource1: TListChartSource;
     knDAC: TmKnob;
     PageControl: TPageControl;
+    rgMag: TRadioGroup;
     rgADCChan: TRadioGroup;
     rgISTtimer: TRadioGroup;
     rgMPUTimer: TRadioGroup;
     SaveDialog: TSaveDialog;
     gridADC: TStringGrid;
+    TimerHMC: TTimer;
     TimerADC: TTimer;
     tsADC: TTabSheet;
     TimerST: TTimer;
@@ -175,8 +179,10 @@ type
     procedure btnWrAdrClick(Sender: TObject);
     procedure btnWriteTableClick(Sender: TObject);
     procedure btnWrZeroClick(Sender: TObject);
+    procedure cgSensorsItemClick(Sender: TObject; Index: integer);
     procedure edAdrChange(Sender: TObject);
     procedure edValueChange(Sender: TObject);
+    procedure FormActivate(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure gridADCMouseMove(Sender: TObject; Shift: TShiftState; X,
       Y: Integer);
@@ -187,33 +193,37 @@ type
     procedure leBinKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure leDecKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure leHexKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure PageControlChange(Sender: TObject);
     procedure rgISTtimerClick(Sender: TObject);
     procedure rgMPUTimerClick(Sender: TObject);
-    procedure TimerADCTimer(Sender: TObject);
-    procedure TimerMPUTimer(Sender: TObject);     {Cyclic read register}
+    procedure TimerADCTimer(Sender: TObject);      {Cyclic read data ADC}
+    procedure TimerHMCTimer(Sender: TObject);
+    procedure TimerMPUTimer(Sender: TObject);      {Cyclic read register IMU}
     procedure TimerISTTimer(Sender: TObject);
     procedure TimerSTTimer(Sender: TObject);
   private
-    procedure CommonRegHdr;                       {Common header for register dump}
-    procedure CommonValHdr;                       {Common header read values}
+    procedure ReadSensors;                         {Look for active i2c addresses}
+    procedure CommonRegHdr;                        {Common header for register dump}
+    procedure CommonValHdr;                        {Common header read values}
     procedure MPURegHdr;
     procedure MPUValHdr;
-    procedure ISTRegHdr;                          {Header IST8310 register}
-    procedure HMCRegHdr;                          {Header HMC5883 register}
-    procedure ISTValHdr;
-    procedure DACValHdr;                          {DAC header for value dump}
+    procedure ISTRegHdr;                           {Header IST8310 register}
+    procedure HMCRegHdr;                           {Header HMC5883 register}
+    procedure MagValHdr(adr: string);
+    procedure DACValHdr;                           {DAC header for value dump}
     procedure SetTimer;
     procedure RefreshSensor;
-    procedure SetVolt(w: byte);                   {Send voltage to DAC}
-    procedure ADCstop;                            {Stop cyclic measuremen}
+    procedure SetVolt(w: byte);                    {Send voltage to DAC}
+    procedure ADCstop;                             {Stop cyclic measuremen}
   public
   end;
 
 var
   Form1: TForm1;
   fs_sel, afs_sel: byte;
-  samples: integer;
-  CompAdr:string;
+  samples, UsedChip: integer;
+
+  {UsedChip: 0 - undef, 1 - MPU, 2 - HMC, 3 - IST, 4 - AS5, 5 - ADC}
 
 type
   TWdVal  = array[0..6] of int16;
@@ -235,9 +245,20 @@ implementation
 
 { TForm1 }
 
+function UsedChipToAdr(uc: byte): string;          {UsedChip: 0 - undef, 1 - MPU, 2 - HMC, 3 - IST, 4 - AS5, 5 - ADC}
+begin
+  result:='0xFF';
+  case uc of
+    1: result:=MPUadr;
+    2: result:=HMCadr;
+    3: result:=ISTadr;
+    4: result:=AS5adr;
+    5: result:=ADCadr;
+  end;
+end;
+
 procedure TForm1.CommonRegHdr;                     {Common header for register dump}
 begin
-  PageControl.ActivePage:=tsTable;
   gridReg.BeginUpdate;
   gridReg.Cells[0, 0]:='Name';
   gridReg.Cells[1, 0]:='Addr hex';
@@ -277,7 +298,7 @@ begin
   gridADC.EndUpdate;
 end;
 
-procedure TForm1.MPURegHdr;                        {Header and register names}
+procedure TForm1.MPURegHdr;                        {MPU Header and register names}
 var
   i: byte;
 
@@ -351,7 +372,7 @@ begin
   MPUWakeUp;                                       {Wake up}
 end;
 
-procedure TForm1.MPUValHdr;                        {Header and shown values}
+procedure TForm1.MPUValHdr;                        {MPU Header and shown values}
 begin
   CommonValHdr;
   gridReg.BeginUpdate;
@@ -384,7 +405,7 @@ begin
   MPUWakeUp;                                       {Wake up}
 end;
 
-procedure TForm1.ISTRegHdr;                        {Header IST8310 register}
+procedure TForm1.ISTRegHdr;                        {Mag Header IST8310 register}
 begin
   gridReg.RowCount:=17;
   CommonRegHdr;
@@ -408,7 +429,7 @@ begin
   gridReg.EndUpdate;
 end;
 
-procedure TForm1.HMCRegHdr;                        {Header HMC5883 register}
+procedure TForm1.HMCRegHdr;                        {Mag Header HMC5883 register}
 begin
   gridReg.RowCount:=14;
   CommonRegHdr;
@@ -429,7 +450,7 @@ begin
   gridReg.EndUpdate;
 end;
 
-procedure TForm1.ISTValHdr;                        {Header and shown values}
+procedure TForm1.MagValHdr(adr: string);           {Mag Header and shown values}
 var
   i: byte;
 
@@ -447,7 +468,7 @@ begin
   gridReg.Cells[6, 1]:='';
   gridReg.Cells[6, 2]:=gridReg.Cells[6, 1];
   gridReg.Cells[6, 3]:=gridReg.Cells[6, 1];
-  if CompAdr=HMCadr then begin
+  if Adr=HMCadr then begin
     for i:=1 to 5 do
       gridReg.Cells[i, 4]:='';
     gridReg.Cells[5, 1]:='mGauss';
@@ -461,123 +482,118 @@ begin
   gridReg.EndUpdate;
 end;
 
-procedure TForm1.RefreshSensor;                    {Check again if MPU is available}
+procedure TForm1.RefreshSensor;                    {Check for active and selected Sensors}
 var
-  i: integer;
-  ist: boolean;
+  i, k: integer;
 
 begin
-  lblTemp.Caption:='';
-  lblChipAdr.Caption:='Nothing found';
+  if cgSensors.Items.Count>0 then begin
+    lblTemp.Caption:='';
+    UsedChip:=0;
 
-  btnISTRead.Enabled:=false;                       {Gray out all buttons}
-  btnISTcyc.Enabled:=false;
-  btnMPURead.Enabled:=false;
-  btnMPUcyc.Enabled:=false;
-  btnWrZero.Enabled:=false;
-  btnWriteTable.Enabled:=false;
-  btnWrAdr.Enabled:=false;
-  btnWriteTable.Enabled:=false;
-  btnAddSlave.Enabled:=false;
-  gbIST8310.Enabled:=false;
-  gbMPU6050.Enabled:=false;
-  gbAS5.Enabled:=false;
-  ist:=false;
-  knDac.Enabled:=false;
+    PageControl.ActivePage:=tsTools;
+    btnISTRead.Enabled:=false;                     {Grey out all buttons}
+    btnISTcyc.Enabled:=false;
+    btnMPURead.Enabled:=false;
+    btnMPUcyc.Enabled:=false;
+    btnWrZero.Enabled:=false;
+    btnWriteTable.Enabled:=false;
+    btnWrAdr.Enabled:=false;
+    btnWriteTable.Enabled:=false;
+    btnAddSlave.Enabled:=false;
+    gbIST8310.Enabled:=false;
+    gbMPU6050.Enabled:=false;
+    gbAS5.Enabled:=false;
+    knDac.Enabled:=false;
+    lblAS5.Caption:='';
+    tsADC.Enabled:=false;
 
-  for i:=0 to MaxSamples do begin
-    chGyroLineX.AddXY(i, 0);
-    chGyroLineY.AddXY(i, 0);
-    chGyroLineZ.AddXY(i, 0);
-    chAccLineX.AddXY(i, 0);
-    chAccLineY.AddXY(i, 0);
-    chAccLineZ.AddXY(i, 0);
-    chMagLineX.AddXY(i, 0);
-    chMagLineY.AddXY(i, 0);
-    chMagLineZ.AddXY(i, 0);
-    ADCin0.AddXY(i, 0);
-    ADCin1.AddXY(i, 0);
-    ADCin2.AddXY(i, 0);
-    ADCin3.AddXY(i, 0);
-  end;
-  samples:=0;
+    for i:=0 to MaxSamples do begin                {Clear all charts}
+      chGyroLineX.AddXY(i, 0);
+      chGyroLineY.AddXY(i, 0);
+      chGyroLineZ.AddXY(i, 0);
+      chAccLineX.AddXY(i, 0);
+      chAccLineY.AddXY(i, 0);
+      chAccLineZ.AddXY(i, 0);
+      chMagLineX.AddXY(i, 0);
+      chMagLineY.AddXY(i, 0);
+      chMagLineZ.AddXY(i, 0);
+      ADCin0.AddXY(i, 0);
+      ADCin1.AddXY(i, 0);
+      ADCin2.AddXY(i, 0);
+      ADCin3.AddXY(i, 0);
+    end;
+    samples:=0;
+    Caption:=AppHdr+tab1+intfac;                   {Init, try sensors}
 
-  if GetAdrStrIST then begin
-    TimerMPU.Enabled:=false;
-    CompAdr:=ISTadr;
-    lblChipAdr.Caption:=CompAdr;
-    if TimerIST.Enabled then                       {Cyclic reading is running}
-      PageControl.ActivePage:=tsTable
-    else
-      ISTRegHdr;
-    SetReg(ISTAdr, 10, 1);                         {Single measurement mode for temp}
-    lblTemp.Caption:=FormatFloat(tf, GetRegWle(ISTAdr, $1C)/1000)+tempunit;
-    btnISTRead.Enabled:=true;
-    btnISTcyc.Enabled:=true;
-    btnWrZero.Enabled:=true;
-    btnWrAdr.Enabled:=true;
-    ist:=true;
-    gbIST8310.Enabled:=true;
-  end;
 
-  if GetAdrStrHMC then begin
-    CompAdr:=HMCadr;
-    lblChipAdr.Caption:=CompAdr;
-    btnISTRead.Enabled:=true;
-    btnISTcyc.Enabled:=true;
-    btnWrZero.Enabled:=true;
-    btnWrAdr.Enabled:=true;
-    ist:=true;                                     {Add as slave is possible}
-  end;
+    for k:=0 to cgSensors.Items.Count-1 do begin   {Refresh all found sensors}
+      if cgSensors.Checked[k] then begin           {but only checked}
 
-  if GetAdrStrAS5 then begin
-    lblChipAdr.Caption:=AS5Adr;
-    gbAS5.Enabled:=true;
-    ist:=true;
-    if CompAdr<>'' then
-      CompAdr:=CompAdr+tab1+AS5Adr
-    else
-      CompAdr:=AS5Adr;
-  end;
+        if (pos(MPUadr, cgSensors.Items[k])>0) and GetAdrStrMPU then begin                 {IMU}
+          caption:=Caption+tab1+AdrToChip(MPUadr);
+          gbMPU6050.Enabled:=true;
+          TimerIST.Enabled:=false;
+          TimerHMC.Enabled:=false;
+          MPURegHdr;
+          lblTemp.Caption:=TempToStr;
+          btnMPURead.Enabled:=true;
+          btnMPUcyc.Enabled:=true;
+          btnWrZero.Enabled:=true;
+          btnWrAdr.Enabled:=true;
+          Continue;
+        end;
 
-  tsADC.Tag:=XtoByte(ADCadr);
-  for i:=0 to 7 do begin
-    if GetAdrStrADC(hexidc+IntToHex(tsADC.Tag+i, 2)) then begin
-      tsADC.Tag:=tsADC.Tag+i;                      {Save valid address}
-      knDac.Enabled:=true;
-      if CompAdr<>'' then
-        CompAdr:=CompAdr+tab1+hexidc+IntToHex(tsADC.Tag, 2)
-      else begin
-        CompAdr:=hexidc+IntToHex(tsADC.Tag, 2);
+        if (rgMag.ItemIndex=1) and (pos(ISTadr, cgSensors.Items[k])>0) and GetAdrStrIST then begin
+          TimerMPU.Enabled:=false;
+          TimerHMC.Enabled:=false;
+          ISTRegHdr;
+          SetReg(ISTAdr, 10, 1);                   {Single measurement mode for temp}
+          lblTemp.Caption:=FormatFloat(tf, GetRegWle(ISTAdr, $1C)/1000)+tempunit;
+          btnISTRead.Enabled:=true;
+          btnISTcyc.Enabled:=true;
+          btnWrZero.Enabled:=true;
+          btnWrAdr.Enabled:=true;
+          gbIST8310.Enabled:=true;
+          Caption:=Caption+tab1+AdrToChip(ISTadr);
+          Continue;
+        end;
+
+        if (rgMag.ItemIndex=0) and (pos(HMCadr, cgSensors.Items[k])>0) and GetAdrStrHMC then begin
+          TimerMPU.Enabled:=false;
+          TimerIST.Enabled:=false;
+          HMCRegHdr;
+          btnISTRead.Enabled:=true;
+          btnISTcyc.Enabled:=true;
+          btnWrZero.Enabled:=true;
+          btnWrAdr.Enabled:=true;
+          btnAddSlave.Enabled:=true;
+          Caption:=Caption+tab1+AdrToChip(HMCadr);
+          Continue;
+        end;
+
+        if (pos(AS5adr, cgSensors.Items[k])>0) and GetAdrStrAS5 then begin                  {Rotary sensor}
+          Caption:=Caption+tab1+AdrToChip(AS5adr);
+          gbAS5.Enabled:=true;
+          lblAS5.Caption:=AS5adr;
+          Continue;
+        end;
+
+        tsADC.Tag:=XtoByte(ADCadr);                {ADC addresses}
+        for i:=0 to 7 do begin
+          if GetAdrStrADC(hexidc+IntToHex(tsADC.Tag+i, 2)) then begin
+            tsADC.Tag:=tsADC.Tag+i;                {Save valid address}
+            knDac.Enabled:=true;
+            SetVolt(0);
+            Caption:=Caption+tab1+AdrToChip(ADCadr);
+            tsADC.Enabled:=true;
+            break;
+          end;
+        end;
+
       end;
-      SetVolt(0);
-      lblChipAdr.Caption:=CompAdr;
-      caption:=AppHdr+tab1+AdrToChip(hexidc+IntToHex(tsADC.Tag, 2));
-      exit;
     end;
   end;
-
-  if GetAdrStrMPU then begin
-    lblChipAdr.Caption:=MPUadr;
-    caption:=AppHdr+AdrToChip(MPUadr);
-    gbMPU6050.Enabled:=true;
-    TimerIST.Enabled:=false;
-    if TimerMPU.Enabled then                       {Cyclic reading is running}
-      PageControl.ActivePage:=tsTable
-    else
-      MPURegHdr;
-    lblTemp.Caption:=TempToStr;
-    btnMPURead.Enabled:=true;
-    btnMPUcyc.Enabled:=true;
-    btnWrZero.Enabled:=true;
-    btnWrAdr.Enabled:=true;
-    if ist then begin
-      btnAddSlave.Enabled:=true;
-      caption:=caption+tab1+AdrToChip(CompAdr)
-    end;
-  end else
-    if ist then
-      caption:=AppHdr+tab1+AdrToChip(CompAdr);
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);      {Init, settings}
@@ -589,11 +605,10 @@ begin
   fs_sel:=0;                                       {Default scale factors}
   afs_sel:=0;
   samples:=0;
-  CompAdr:='';
   lblTemp.Caption:='';
   Caption:=AppHdr+tab1+intfac;                     {Init, try sensors}
-  RefreshSensor;
   DACValHdr;                                       {DAC header for value dump}
+  UsedChip:=0;                                     {UsedChip: 0 - undef}
 end;
 
 procedure TForm1.gridADCMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
@@ -624,7 +639,7 @@ begin
       end;
     end;
   end;
- end;
+end;
 
 procedure TForm1.gridRegPrepareCanvas(sender: TObject; aCol, aRow: Integer;
   aState: TGridDrawState);
@@ -641,10 +656,10 @@ begin
 
   if (aCol=0) and (gridReg.RowCount>9) then begin  {Not for values}
     r:=StrToIntDef(gridReg.Cells[2, aRow], 255);   {Mark R/W green}
-    if ((r in rwregs) and (lblChipAdr.Caption=MPUadr)) or
-       ((r in rwIST) and (lblChipAdr.Caption=ISTAdr)) or
-       ((r in rwHMC) and (lblChipAdr.Caption=HMCAdr)) then begin
-      gridReg.Canvas.Brush.Color:=clRW;
+    case UsedChip of                               {UsedChip: 0 - undef, 1 - MPU, 2 - HMC, 3 - IST, 4 - AS5, 5 - ADC}
+      1: if r in rwregs then gridReg.Canvas.Brush.Color:=clRW;
+      2: if r in rwHMC  then gridReg.Canvas.Brush.Color:=clRW;
+      3: if r in rwIST  then gridReg.Canvas.Brush.Color:=clRW;
     end;
   end;
 end;
@@ -658,7 +673,7 @@ begin
   end;
 end;
 
-procedure TForm1.knDACChange(Sender: TObject; AValue: Longint);
+procedure TForm1.knDACChange(Sender: TObject; AValue: Longint);  {Knob for DAC moved}
 begin
   if btnSinus.Tag=0 then
     SetVolt(AValue);
@@ -693,13 +708,22 @@ begin
   end;
 end;
 
+procedure TForm1.PageControlChange(Sender: TObject);
+begin
+  if PageControl.ActivePage=tsADC then
+    UsedChip:=5;
+  lblChipAdr.Caption:=UsedChipToAdr(UsedChip);
+end;
+
 procedure TForm1.SetTimer;
 begin
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
+  TimerHMC.Enabled:=false;
   TimerADC.Enabled:=false;
   TimerMPU.Interval:=StrToInt(rgMPUTimer.Items[rgMPUTimer.ItemIndex]);
   TimerIST.Interval:=StrToInt(rgISTTimer.Items[rgISTTimer.ItemIndex]);
+  TimerHMC.Interval:=StrToInt(rgISTTimer.Items[rgISTTimer.ItemIndex]);
   TimerADC.Interval:=StrToInt(rgISTTimer.Items[rgISTTimer.ItemIndex]);
 end;
 
@@ -758,6 +782,49 @@ begin
     samples:=0;
 end;
 
+procedure TForm1.TimerHMCTimer(Sender: TObject);
+var
+  w: int16;
+  g: double;
+  gain: byte;
+
+begin
+  gain:=88;                                        {invalid}
+  gain:=getGain;
+  gridReg.Cells[6, 1]:=GainToStr(gain);
+  if PageControl.ActivePage=tsTable then begin     {Write to table}
+    gridReg.BeginUpdate;
+
+    w:=GetRegWle(HMCAdr, 3);                       {X}
+    gridReg.Cells[1, 1]:=IntToHex(w, 4);
+    gridReg.Cells[2, 1]:=IntToStr(w);
+    gridReg.Cells[4, 1]:=FormatFloat(tf, ConvHMC(w, gain));
+    w:=GetRegWle(HMCAdr, 7);
+    gridReg.Cells[1, 2]:=IntToHex(w, 4);           {Y}
+    gridReg.Cells[2, 2]:=IntToStr(w);
+    gridReg.Cells[4, 2]:=FormatFloat(tf, ConvHMC(w, gain));
+    w:=GetRegWle(HMCAdr, 5);                       {Z}
+    gridReg.Cells[1, 3]:=IntToHex(w, 4);
+    gridReg.Cells[2, 3]:=IntToStr(w);
+    gridReg.Cells[4, 3]:=FormatFloat(tf, ConvHMC(w, gain));
+
+    gridReg.EndUpdate;
+  end;
+
+  if PageControl.ActivePage=tsMag then begin       {Compass}
+    g:=ConvHMC(GetRegWle(HMCAdr, 3), gain);        {X}
+    chMagLineX.SetYValue(samples, g);
+    g:=ConvHMC(GetRegWle(HMCAdr, 7), gain);        {Y}
+    chMagLineY.SetYValue(samples, g);
+    g:=ConvHMC(GetRegWle(HMCAdr, 5), gain);        {Z}
+    chMagLineZ.SetYValue(samples, g);
+  end;
+
+  inc(samples);
+  if samples>MaxSamples then
+    samples:=0;
+end;
+
 procedure TForm1.btnMPUReadClick(Sender: TObject); {Read all register}
 var
   i, b, x: byte;
@@ -768,10 +835,12 @@ begin
 
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
-  lblChipAdr.Caption:=MPUadr;
+  TimerHMC.Enabled:=false;
   btnWriteTable.Enabled:=true;
   MPURegHdr;
   lblTemp.Caption:=TempToStr;
+  ADCstop;
+  PageControl.ActivePage:=tsTable;
   gridReg.BeginUpdate;
   for i:=1 to 4 do begin
     x:=i+12;
@@ -839,19 +908,24 @@ begin
 //  gridReg.TopRow:=31;                            {Jump to acc values}
   gridReg.EndUpdate;
   btnWriteTable.Enabled:=true;
+  UsedChip:=1;
+  lblChipAdr.Caption:=UsedChipToAdr(UsedChip);
 end;
 
 procedure TForm1.btnMPUcycClick(Sender: TObject);  {Start reading values}
 begin
+  UsedChip:=1;
+  lblChipAdr.Caption:=UsedChipToAdr(UsedChip);
+  ADCstop;
+  if PageControl.ActivePageIndex>2 then
+    PageControl.ActivePage:=tsTable;
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
-  lblChipAdr.Caption:=MPUadr;
+  TimerHMC.Enabled:=false;
   btnWriteTable.Enabled:=false;
   btnWrAdr.Enabled:=false;
   fs_sel:=GetFS_SEL;                               {Gyro Scale 0..3}
   afs_sel:=GetAFS_SEL;                             {Acc Scale 0..3}
-  if PageControl.ActivePage=tsTools then
-    PageControl.ActivePage:=tsTable;
   MPUValHdr;
   samples:=0;
   TimerMPU.Enabled:=true;
@@ -912,75 +986,40 @@ begin
     samples:=0;
 end;
 
-procedure TForm1.TimerISTTimer(Sender: TObject);
+procedure TForm1.TimerISTTimer(Sender: TObject);   {Mag chips}
 var
   w: int16;
-  g: double;
-  i, gain: byte;
+  i: byte;
 
 begin
-  gain:=88;                                        {invalid}
-  if cbISTsingle.Checked and (CompAdr=ISTAdr) then
+  if cbISTsingle.Checked then
     SetReg(ISTAdr, 10, 1);                         {Single measurement mode}
-  if CompAdr=HMCAdr then begin
-    gain:=getGain;
-    gridReg.Cells[6, 1]:=GainToStr(gain);
-  end;
   if PageControl.ActivePage=tsTable then begin     {Write to table}
 
     gridReg.BeginUpdate;
 
-    if CompAdr=ISTadr then begin
-      for i:=1 to 3 do begin                       {Magnetometer}
-        w:=GetRegWle(ISTAdr, i*2+1);
-        gridReg.Cells[1, i]:=IntToHex(w, 4);
-        gridReg.Cells[2, i]:=IntToStr(w);
-        gridReg.Cells[4, i]:=FormatFloat(tf, w);
-      end;
-
-      w:=GetRegWle(ISTAdr, $1C);                   {Temperature}
-      gridReg.Cells[1, 4]:=IntToHex(w, 4);
-      gridReg.Cells[2, 4]:=IntToStr(w);
-      gridReg.Cells[4, 4]:=FormatFloat(tf, w/1000);
+    for i:=1 to 3 do begin                         {Magnetometer}
+      w:=GetRegWle(ISTAdr, i*2+1);
+      gridReg.Cells[1, i]:=IntToHex(w, 4);
+      gridReg.Cells[2, i]:=IntToStr(w);
+      gridReg.Cells[4, i]:=FormatFloat(tf, w);
     end;
 
-    if CompAdr=HMCadr then begin
-      w:=GetRegWle(HMCAdr, 3);                     {X}
-      gridReg.Cells[1, 1]:=IntToHex(w, 4);
-      gridReg.Cells[2, 1]:=IntToStr(w);
-      gridReg.Cells[4, 1]:=FormatFloat(tf, ConvHMC(w, gain));
-      w:=GetRegWle(HMCAdr, 7);
-      gridReg.Cells[1, 2]:=IntToHex(w, 4);
-      gridReg.Cells[2, 2]:=IntToStr(w);
-      gridReg.Cells[4, 2]:=FormatFloat(tf, ConvHMC(w, gain));
-      w:=GetRegWle(HMCAdr, 5);
-      gridReg.Cells[1, 3]:=IntToHex(w, 4);
-      gridReg.Cells[2, 3]:=IntToStr(w);
-      gridReg.Cells[4, 3]:=FormatFloat(tf, ConvHMC(w, gain));
-    end;
+    w:=GetRegWle(ISTAdr, $1C);                     {Temperature}
+    gridReg.Cells[1, 4]:=IntToHex(w, 4);
+    gridReg.Cells[2, 4]:=IntToStr(w);
+    gridReg.Cells[4, 4]:=FormatFloat(tf, w/1000);
+
     gridReg.EndUpdate;
   end;
 
   if PageControl.ActivePage=tsMag then begin       {Compass}
-    if CompAdr=ISTadr then begin
-      chMagLineX.SetYValue(samples, GetRegWle(ISTAdr, 3));
-      chMagLineY.SetYValue(samples, GetRegWle(ISTAdr, 5));
-      chMagLineZ.SetYValue(samples, GetRegWle(ISTAdr, 7));
-      w:=GetRegWle(ISTAdr, $1C);                   {Temperature}
-    end;
-
-    if CompAdr=HMCadr then begin
-      g:=ConvHMC(GetRegWle(HMCAdr, 3), gain);      {X}
-      chMagLineX.SetYValue(samples, g);
-      g:=ConvHMC(GetRegWle(HMCAdr, 7), gain);      {Y}
-      chMagLineY.SetYValue(samples, g);
-      g:=ConvHMC(GetRegWle(HMCAdr, 5), gain);      {Z}
-      chMagLineZ.SetYValue(samples, g);
-    end;
+    chMagLineX.SetYValue(samples, GetRegWle(ISTAdr, 3));
+    chMagLineY.SetYValue(samples, GetRegWle(ISTAdr, 5));
+    chMagLineZ.SetYValue(samples, GetRegWle(ISTAdr, 7));
+    w:=GetRegWle(ISTAdr, $1C);                     {Temperature}
   end;
-
-  if CompAdr=ISTadr then
-    lblTemp.Caption:=FormatFloat(tf, w/1000)+tempunit;
+  lblTemp.Caption:=FormatFloat(tf, w/1000)+tempunit;
 
   inc(samples);
   if samples>MaxSamples then
@@ -1159,8 +1198,6 @@ end;
 
 procedure TForm1.btnCloseClick(Sender: TObject);
 begin
-  TimerMPU.Enabled:=false;
-  TimerIST.Enabled:=false;
   Close;
 end;
 
@@ -1169,6 +1206,9 @@ var
   i, b, x: byte;
 
 begin
+  UsedChip:=4;
+  PageControl.ActivePage:=tsTable;
+  lblChipAdr.Caption:=UsedChipToAdr(UsedChip);
   gridReg.RowCount:=19;
   CommonRegHdr;
   gridReg.Cells[0, 1]:='Conf ZMO';
@@ -1236,6 +1276,8 @@ begin
   TimerADC.Enabled:=false;
   btnSinus.Tag:=0;
   knDAC.Enabled:=true;
+  if PageControl.ActivePage=tsADC then
+    samples:=0;
 end;
 
 procedure TForm1.btnADCstopClick(Sender: TObject);
@@ -1273,10 +1315,12 @@ begin
   btnWriteTable.Enabled:=true;
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
-  lblChipAdr.Caption:=CompAdr;
+  TimerHMC.Enabled:=false;
+  ADCstop;
   PageControl.ActivePage:=tsTable;
   gridReg.BeginUpdate;
-  if CompAdr=ISTadr then begin
+  if rgMag.ItemIndex=1 then begin
+    UsedChip:=3;                                   {UsedChip: 2 - HMC, 3 - IST}
     ISTRegHdr;
     SetReg(ISTAdr, 10, 1);                         {Single measurement mode for temp}
     lblTemp.Caption:=FormatFloat(tf, GetRegWle(ISTAdr, $1C)/1000)+tempunit;
@@ -1284,9 +1328,9 @@ begin
     if cbISTsingle.Checked then
       SetReg(ISTAdr, 10, 1);                       {Single measurement mode}
     if cbISTdren.Checked then
-      SetReg(ISTAdr, 11, 8);                         {DREN}
+      SetReg(ISTAdr, 11, 8);                       {DREN}
     if cbISTSTR.Checked then
-      SetReg(ISTAdr, 12, 64);                        {Self test mode}
+      SetReg(ISTAdr, 12, 64);                      {Self test mode}
 
     b:=GetReg(ISTAdr, 0);
     gridReg.Cells[1, 1]:='00';
@@ -1304,7 +1348,7 @@ begin
       gridReg.Cells[6, i]:=Format(df, [b]);
     end;
 
-    b:=GetReg(ISTAdr, $1C);                          {Temperature}
+    b:=GetReg(ISTAdr, $1C);                        {Temperature}
     gridReg.Cells[1, 13]:='1C';
     gridReg.Cells[2, 13]:='28';
     gridReg.Cells[4, 13]:=IntToBin(b, 8);
@@ -1317,21 +1361,22 @@ begin
     gridReg.Cells[5, 14]:=IntToHex(b, 2);
     gridReg.Cells[6, 14]:=Format(df, [b]);
 
-    b:=GetReg(ISTAdr, $41);                          {AVG control}
+    b:=GetReg(ISTAdr, $41);                        {AVG control}
     gridReg.Cells[1, 15]:='41';
     gridReg.Cells[2, 15]:='65';
     gridReg.Cells[4, 15]:=IntToBin(b, 8);
     gridReg.Cells[5, 15]:=IntToHex(b, 2);
     gridReg.Cells[6, 15]:=Format(df, [b]);
-    b:=GetReg(ISTAdr, $42);                          {PD control}
+    b:=GetReg(ISTAdr, $42);                        {PD control}
     gridReg.Cells[1, 16]:='42';
     gridReg.Cells[2, 16]:='66';
     gridReg.Cells[4, 16]:=IntToBin(b, 8);
     gridReg.Cells[5, 16]:=IntToHex(b, 2);
     gridReg.Cells[6, 16]:=Format(df, [b]);
   end;
-  if CompAdr=HMCadr then begin
+  if rgMag.ItemIndex=0 then begin
     HMCRegHdr;
+    UsedChip:=2;                                   {UsedChip: 2 - HMC, 3 - IST}
     for i:=0 to 12 do begin
       b:=GetReg(HMCAdr, i);
       gridReg.Cells[1, i+1]:=IntToHex(i, 2);
@@ -1342,55 +1387,87 @@ begin
     end;
   end;
   gridReg.EndUpdate;
+  lblChipAdr.Caption:=UsedChipToAdr(UsedChip);
 end;
 
 procedure TForm1.btnISTcycClick(Sender: TObject);
 begin
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
+  TimerHMC.Enabled:=false;
   btnWriteTable.Enabled:=false;
   btnWrAdr.Enabled:=false;
-  lblChipAdr.Caption:=CompAdr;
-  ISTValHDR;
-  PageControl.ActivePage:=tsTable;
-  if CompAdr=ISTadr then begin
+  ADCstop;
+  if Pagecontrol.ActivePage<>tsMag then
+    PageControl.ActivePage:=tsTable;
+  if rgMag.ItemIndex=1 then begin
+    UsedChip:=2;                                   {UsedChip: 2 - HMC, 3 - IST}
+    MagValHDR(ISTadr);
     ISTreset;                                      {Control register2 Soft reset}
     if cbISTdren.Checked  then
       SetReg(ISTAdr, 11, 8);                       {DREN}
-  end else
-    if CompAdr=HMCadr then
-      HMCinit;
-  TimerIST.Enabled:=true;
+    TimerIST.Enabled:=true;
+  end;
+  if rgMag.ItemIndex=0 then begin
+    MagValHDR(HMCadr);
+    UsedChip:=2;                                   {UsedChip: 2 - HMC, 3 - IST}
+    HMCinit;
+    TimerHMC.Enabled:=true;
+  end;
+  lblChipAdr.Caption:=UsedChipToAdr(UsedChip);
 end;
 
 procedure TForm1.btnSaveClick(Sender: TObject);
 begin
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
-  SaveDialog.FileName:='Register_'+lblChipAdr.Caption+'_1.csv';
+  SaveDialog.FileName:='Register_'+AdrToChip(UsedChipToAdr(UsedChip))+'.csv';
   if SaveDialog.Execute then
     gridReg.SaveToCSVFile(SaveDialog.FileName, ';');
 end;
 
-procedure TForm1.btnScanClick(Sender: TObject);     {Look for active i2c addresses}
+procedure TForm1.ReadSensors;                      {Look for active i2c addresses}
+var
+  s: string;
+  i: integer;
+
 begin
   Screen.Cursor:=crHourglass;
-  lblScan.Caption:='';
-  lblScan.Refresh;
+  cgSensors.Items.Clear;
   try
-    lblScan.Caption:=ScanI2C;
-    if lblScan.Caption='' then
-      lblScan.Caption:='none';
+    s:=trim(ScanI2C);
+    if s='' then begin
+      lblChipAdr.Caption:='none';
+    end else begin
+      lblChipAdr.Caption:=s;
+      cgSensors.Items.AddDelimitedText(s, ' ', true);
+      for i:=0 to cgSensors.Items.Count-1 do begin
+        s:=cgSensors.Items[i];
+        if s=HMCadr then
+          rgMag.ItemIndex:=0;
+        if s=ISTadr then
+          rgMag.ItemIndex:=1;
+        cgSensors.Items[i]:=s+' '+AdrToChip(s);
+        cgSensors.Checked[i]:=true;
+      end;
+    end;
   finally
     Screen.Cursor:=crDefault;
   end;
 end;
 
-procedure TForm1.btnSelftestClick(Sender: TObject);  {Start self test}
+procedure TForm1.btnScanClick(Sender: TObject);    {Look for active i2c addresses}
 begin
+  ReadSensors;
+end;
+
+procedure TForm1.btnSelftestClick(Sender: TObject); {Start self test}
+begin
+  UsedChip:=1;
+  lblChipAdr.Caption:=UsedChipToAdr(UsedChip);
   if btnMPUread.Enabled then begin
     TimerIST.Enabled:=false;
-    lblChipAdr.Caption:=MPUadr;
+    TimerHMC.Enabled:=false;
     btnWriteTable.Enabled:=false;
     btnWrAdr.Enabled:=false;
     PageControl.ActivePage:=tsTable;
@@ -1400,6 +1477,7 @@ begin
     TimerST.Interval:=200;
     TimerST.Enabled:=true;
     TimerMPU.Enabled:=true;
+    lblAS5.Caption:='';
   end;
 end;
 
@@ -1414,9 +1492,11 @@ procedure TForm1.btnStopClick(Sender: TObject);    {Stop all cyclic work}
 begin
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
+  TimerHMC.Enabled:=false;
   TimerST.Enabled:=false;                          {Self test timer}
   btnWrAdr.Enabled:=true;
   ADCstop;
+  RefreshSensor;
 end;
 
 procedure TForm1.btnAddSlaveClick(Sender: TObject);
@@ -1424,6 +1504,8 @@ var
   b: byte;
 
 begin
+  UsedChip:=1;
+  lblChipAdr.Caption:=UsedChipToAdr(UsedChip);
   b:=$0E;                                          {Address of IST8310}
   b:=b or $80;                                     {Read access}
   SetReg(MPUadr, 37, b);
@@ -1439,40 +1521,61 @@ var
   a: integer;
 begin
   a:=StrToIntDef(edAdr.Text, 0) and $FF;
-  if ((a in rwregs) and (lblChipAdr.Caption=MPUadr)) or
-     ((a in rwIST) and (lblChipAdr.Caption=ISTadr)) or
-     ((a in rwHMC) and (lblChipAdr.Caption=HMCadr)) then begin
-    lblError.Caption:=hexidc+IntToHex(a, 2);
-    btnWrAdr.Enabled:=true;
-  end else begin
-    lblError.Caption:='Invalid register address';
-    btnWrAdr.Enabled:=false;
+  case usedChip of
+    1: if a in rwregs then begin
+         lblError.Caption:=hexidc+IntToHex(a, 2);
+       end else begin
+         lblError.Caption:='Invalid register address';
+         btnWrAdr.Enabled:=false;
+       end;
+    2: if a in rwHMC then begin
+         lblError.Caption:=hexidc+IntToHex(a, 2);
+       end else begin
+         lblError.Caption:='Invalid register address';
+         btnWrAdr.Enabled:=false;
+       end;
+    3: if a in rwIST then begin
+         lblError.Caption:=hexidc+IntToHex(a, 2);
+       end else begin
+         lblError.Caption:='Invalid register address';
+         btnWrAdr.Enabled:=false;
+       end;
+    5: begin
+         lblError.Caption:='Write value to DAC';
+         btnWrAdr.Enabled:=true;
+       end;
   end;
 end;
 
 procedure TForm1.btnWrAdrClick(Sender: TObject);   {Write one byte to a register}
 var
-  a: integer;
+  a: byte;
 
 begin
   a:=StrToIntDef(edAdr.Text, 0) and $FF;
-  if (a in rwregs) and (lblChipAdr.Caption=MPUadr) then
-    MPUWakeUp;                                     {Wake up MPU6050}
-  if (a in rwIST) and (lblChipAdr.Caption=ISTadr) then
-    ISTreset;                                      {Reset IST8310}
-  SetReg(lblChipAdr.Caption, a, btnWrAdr.Tag and $FF);
+  case usedChip of
+    1: if a in rwregs then begin
+         MPUWakeUp;                                {Wake up MPU6050}
+    end;
+    2: SetReg(HMCadr, a, btnWrAdr.Tag and $FF);
+    3: if a in rwIST then begin
+      ISTreset;                                    {Reset IST8310}
+      SetReg(ISTadr, a, btnWrAdr.Tag and $FF);
+    end;
+    5: SetDAC(hexidc+IntToHex(tsADC.Tag, 2), btnWrAdr.Tag);
+  end;
   lblError.Caption:=IntToStr(btnWrAdr.Tag)+' written to '+IntToStr(a);
 end;
 
 procedure TForm1.btnWriteTableClick(Sender: TObject);
 var
-  i, b: byte;
+  b: byte;
 
-begin
-  TimerMPU.Enabled:=false;
-  TimerIST.Enabled:=false;
+  procedure wrMPU;
+  var
+    i: integer;
 
-  if lblChipAdr.Caption=MPUadr then begin          {MPU6050}
+  begin
     TimerST.Enabled:=false;
     MPURegHdr;
     for i:=1 to 4 do begin
@@ -1506,29 +1609,45 @@ begin
     end;
   end;
 
-  if lblChipAdr.Caption=ISTadr then begin          {IST8310}
+  procedure wrIST;
+  var
+    i: integer;
+
+  begin
     for i:=10 to 12 do                             {Control register, Self test}
       SetReg(ISTadr, i, StrToIntDef(gridReg.Cells[6, i], 0));
     SetReg(ISTadr, 65, StrToIntDef(gridReg.Cells[6, 15], 0));
     SetReg(ISTadr, 66, StrToIntDef(gridReg.Cells[6, 16], 0));
   end;
 
-  if lblChipAdr.Caption=HMCadr then begin          {HMC5883}
+  procedure wrHMC;
+  var
+    i: integer;
+
+  begin
     for i:=0 to 2 do                               {Conf / Mode register}
       SetReg(HMCadr, i, StrToIntDef(gridReg.Cells[6, i+1], 0));
+  end;
+
+begin
+  TimerMPU.Enabled:=false;
+  TimerIST.Enabled:=false;
+  TimerHMC.Enabled:=false;
+  case UsedChip of
+    1: wrMPU;                                      {MPU6050}
+    2: wrHMC;                                      {IST8310}
+    3: wrIST;                                      {HMC5883}
+    5: SetDAC(hexidc+IntToHex(tsADC.Tag, 2), 0);   {reset ADC}
   end;
 end;
 
 procedure TForm1.btnWrZeroClick(Sender: TObject);  {Write zero to all R/W registers}
-var
-  i, x, b: byte;
 
-begin
-  btnWriteTable.Enabled:=false;
-  TimerMPU.Enabled:=false;
-  TimerIST.Enabled:=false;
+  procedure wr0MPU;
+  var
+    i, x, b: byte;
 
-  if lblChipAdr.Caption=MPUadr then begin          {MPU6050}
+  begin
     TimerST.Enabled:=false;
     MPUWakeUp;                                     {Wake up}
     MPUregHdr;
@@ -1565,17 +1684,43 @@ begin
     SetReg(MPUadr, 107, rst107);                   {PWR_MGMT_1, has default $40}
   end;
 
-  if lblChipAdr.Caption=ISTadr then begin          {IST8310}
+  procedure wr0HMC;
+  var
+    i: byte;
+
+  begin
+    for i:=0 to 2 do                               {Conf / Mode register}
+      SetReg(HMCadr, i, 0);
+  end;
+
+  procedure wr0IST;
+  var
+    i: byte;
+
+  begin
     for i:=10 to 12 do                             {Control register, Self test}
       SetReg(ISTadr, i, 0);
     SetReg(ISTadr, 65, 0);                         { $41 Avarage timer control}
     SetReg(ISTadr, 66, 0);                         { $42 Pulse duration control}
   end;
 
-  if lblChipAdr.Caption=HMCadr then begin          {HMC5883}
-    for i:=0 to 2 do                               {Conf / Mode register}
-      SetReg(HMCadr, i, 0);
+begin
+  btnWriteTable.Enabled:=false;
+  TimerMPU.Enabled:=false;
+  TimerIST.Enabled:=false;
+  TimerHMC.Enabled:=false;
+
+  case UsedChip of
+    1: wr0MPU;
+    2: wr0HMC;
+    3: wr0IST;
+    5: SetDAC(hexidc+IntToHex(tsADC.Tag, 2), 0);
   end;
+end;
+
+procedure TForm1.cgSensorsItemClick(Sender: TObject; Index: integer);
+begin
+  RefreshSensor;
 end;
 
 procedure TForm1.edValueChange(Sender: TObject);   {Check input value}
@@ -1591,6 +1736,12 @@ begin
   btnWrAdr.Tag:=StrToIntDef(s, 0) and $FF;
   lblHex.Caption:=hexidc+IntToHex(btnWrAdr.Tag, 2);
   lblBin.Caption:=IntToBin(btnWrAdr.Tag, 8);
+end;
+
+procedure TForm1.FormActivate(Sender: TObject);
+begin
+  ReadSensors;                                     {Create a list of available sensors}
+  RefreshSensor;
 end;
 
 end.

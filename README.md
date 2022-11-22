@@ -10,4 +10,4 @@ With latest version more sensors are supported:
 
 ![Screenshot](hmc_regs.png)
 
-This programm uses latest unit "mpu_ctrl.pas" from repository "common_units"
+This programm uses latest unit "mpu_ctrl.pas" from repository "common_units".

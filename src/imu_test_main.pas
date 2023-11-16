@@ -4,7 +4,7 @@
 {                                                        }
 {       Copyright (c) 2019-2022    Helmut Elsner         }
 {                                                        }
-{       Compiler: FPC 3.2.2   /    Lazarus 2.2.0         }
+{       Compiler: FPC 3.2.2   /    Lazarus 2.3.0         }
 {                                                        }
 { Pascal programmers tend to plan ahead, they think      }
 { before they type. We type a lot because of Pascal      }
@@ -60,6 +60,8 @@ IMU Pitch/Roll:
 
 https://create.arduino.cc/projecthub/MissionCritical/mpu-6050-tutorial-how-to-program-mpu-6050-with-arduino-aee39a
 
+AS5600 Programming added at 15.11.2023
+
 *)
 
 
@@ -71,7 +73,8 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, Grids,
-  ExtCtrls, ComCtrls, MKnob, TAGraph, TASources, TASeries, strutils, mpu_ctrl;
+  ExtCtrls, ComCtrls, MKnob, indGnouMeter, TAGraph, TASources, TASeries,
+  strutils, mpu_ctrl;
 
 type
 
@@ -80,6 +83,8 @@ type
   TForm1 = class(TForm)
     btnAddSlave: TButton;
     btnAS5Reg: TButton;
+    btnBurnCali: TButton;
+    btnReadCONF: TButton;
     btnScan: TButton;
     btnSelftest: TButton;
     btnISTRead: TButton;
@@ -87,7 +92,9 @@ type
     btnMPURead: TButton;
     btnMPUcyc: TButton;
     btnClose: TButton;
+    btnOTP: TButton;
     btnWrAdr: TButton;
+    btnWriteCONF: TButton;
     btnWriteTable: TButton;
     btnSave: TButton;
     btnStop: TButton;
@@ -96,6 +103,10 @@ type
     btnADCstop: TButton;
     btnSinus: TButton;
     btnADCSingle: TButton;
+    btnBurnCONF: TButton;
+    btnSetZero: TButton;
+    btnSetMax: TButton;
+    btnReadCycl: TButton;
     cbISTdren: TCheckBox;
     cbISTsingle: TCheckBox;
     cbISTSTR: TCheckBox;
@@ -105,6 +116,9 @@ type
     ADCin2: TLineSeries;
     ADCin3: TLineSeries;
     cgSensors: TCheckGroup;
+    cbMH: TCheckBox;
+    cbML: TCheckBox;
+    cbMD: TCheckBox;
     chGyro: TChart;
     chAcc: TChart;
     chMag: TChart;
@@ -117,7 +131,17 @@ type
     chGyroLineZ: TLineSeries;
     chAccLineZ: TLineSeries;
     chMagLineZ: TLineSeries;
+    cbPM: TComboBox;
+    cbHYST: TComboBox;
+    cbOUTS: TComboBox;
+    cbPWMF: TComboBox;
+    cbSF: TComboBox;
+    cbFTH: TComboBox;
+    cbWD: TComboBox;
     edAdr: TEdit;
+    edMANGH: TEdit;
+    edMANGL: TEdit;
+    edMANGD: TEdit;
     edValue: TEdit;
     gridReg: TStringGrid;
     gbWrReg: TGroupBox;
@@ -125,10 +149,27 @@ type
     gbMPU6050: TGroupBox;
     gbTimer: TGroupBox;
     gbHexBin: TGroupBox;
-    gbAS5: TGroupBox;
     gbScan: TGroupBox;
+    gbConf: TGroupBox;
+    gbCali: TGroupBox;
+    slAng: TindGnouMeter;
+    slRaw: TindGnouMeter;
     Label1: TLabel;
     Label2: TLabel;
+    lblBurnC: TLabel;
+    lblMoveM: TLabel;
+    lblMoveZ: TLabel;
+    lblHexLow: TLabel;
+    lblHexHigh: TLabel;
+    lblMANG: TLabel;
+    lblMstat: TLabel;
+    lblWD: TLabel;
+    lblFTH: TLabel;
+    lblSF: TLabel;
+    lblPWMF: TLabel;
+    lblOUTS: TLabel;
+    lblHYST: TLabel;
+    lblPM: TLabel;
     lblAS5: TLabel;
     lblDAC: TLabel;
     lblST: TLabel;
@@ -144,12 +185,17 @@ type
     ListChartSource1: TListChartSource;
     knDAC: TmKnob;
     PageControl: TPageControl;
+    pnlRed: TPanel;
+    pnlRed1: TPanel;
     rgMag: TRadioGroup;
     rgADCChan: TRadioGroup;
     rgISTtimer: TRadioGroup;
     rgMPUTimer: TRadioGroup;
     SaveDialog: TSaveDialog;
     gridADC: TStringGrid;
+    gridCali: TStringGrid;
+    TimerAS5: TTimer;
+    tsAS5600: TTabSheet;
     TimerHMC: TTimer;
     TimerADC: TTimer;
     tsADC: TTabSheet;
@@ -165,18 +211,26 @@ type
     procedure btnADCstartClick(Sender: TObject);
     procedure btnADCstopClick(Sender: TObject);
     procedure btnAS5RegClick(Sender: TObject);
+    procedure btnBurnCaliClick(Sender: TObject);
+    procedure btnBurnCONFClick(Sender: TObject);
     procedure btnCloseClick(Sender: TObject);
     procedure btnISTReadClick(Sender: TObject);
     procedure btnISTcycClick(Sender: TObject);
     procedure btnMPUcycClick(Sender: TObject);
     procedure btnMPUReadClick(Sender: TObject);
+    procedure btnOTPClick(Sender: TObject);
+    procedure btnReadCONFClick(Sender: TObject);
+    procedure btnReadCyclClick(Sender: TObject);
     procedure btnSaveClick(Sender: TObject);
     procedure btnScanClick(Sender: TObject);
     procedure btnSelftestClick(Sender: TObject);
+    procedure btnSetMaxClick(Sender: TObject);
+    procedure btnSetZeroClick(Sender: TObject);
     procedure btnSinusClick(Sender: TObject);
     procedure btnStopClick(Sender: TObject);
     procedure btnAddSlaveClick(Sender: TObject);
     procedure btnWrAdrClick(Sender: TObject);
+    procedure btnWriteCONFClick(Sender: TObject);
     procedure btnWriteTableClick(Sender: TObject);
     procedure btnWrZeroClick(Sender: TObject);
     procedure cgSensorsItemClick(Sender: TObject; Index: integer);
@@ -186,6 +240,8 @@ type
     procedure FormCreate(Sender: TObject);
     procedure gridADCMouseMove(Sender: TObject; Shift: TShiftState; X,
       Y: Integer);
+    procedure gridCaliPrepareCanvas(sender: TObject; aCol, aRow: Integer;
+      aState: TGridDrawState);
     procedure gridRegPrepareCanvas(sender: TObject; aCol, aRow: Integer;
       aState: TGridDrawState);
     procedure knDACChange(Sender: TObject; AValue: Longint);
@@ -197,10 +253,12 @@ type
     procedure rgISTtimerClick(Sender: TObject);
     procedure rgMPUTimerClick(Sender: TObject);
     procedure TimerADCTimer(Sender: TObject);      {Cyclic read data ADC}
+    procedure TimerAS5Timer(Sender: TObject);
     procedure TimerHMCTimer(Sender: TObject);
     procedure TimerMPUTimer(Sender: TObject);      {Cyclic read register IMU}
     procedure TimerISTTimer(Sender: TObject);
     procedure TimerSTTimer(Sender: TObject);
+    procedure FillMANGD(Sender: TObject);          {Show Maximum Angle}
   private
     procedure ReadSensors;                         {Look for active i2c addresses}
     procedure CommonRegHdr;                        {Common header for register dump}
@@ -215,6 +273,10 @@ type
     procedure RefreshSensor;
     procedure SetVolt(w: byte);                    {Send voltage to DAC}
     procedure ADCstop;                             {Stop cyclic measuremen}
+    procedure ReadAS5600Reg;                       {AS5600 register only}
+    procedure ConfHints;
+    function  ConvAngle(d: integer): string;       {ToDo conversion Maximum Angle to °}
+    procedure ReadAS5ro;                           {Read As5600 output register}
   public
   end;
 
@@ -235,9 +297,21 @@ const
   maxSamples=100;
   ziff=['0'..'9'];
   clRW=clMoneyGreen;
-  appHdr='Read/write register from';
   tab1=' ';
   tempunit='°C';
+  hexid='$';
+  PGOpin=17;                                       {GPIO17 - pin 11}
+
+resourcestring
+  appHdr='Read/write register from';
+  capMstat='Status';
+  hntMStat='Status magnet / AGC';
+  hntBurn='Be careful!';
+  hntBurn1=' Do it only if you know what you do.';
+  hntBurnC='Write configuration permanently into OTP. ';
+  hntBurnA='Write angle values permanently into OTP. ';
+  hntCali='Read manual for calibration procedure.';
+
 
 implementation
 
@@ -491,7 +565,6 @@ begin
     lblTemp.Caption:='';
     UsedChip:=0;
 
-    PageControl.ActivePage:=tsTools;
     btnISTRead.Enabled:=false;                     {Grey out all buttons}
     btnISTcyc.Enabled:=false;
     btnMPURead.Enabled:=false;
@@ -503,7 +576,7 @@ begin
     btnAddSlave.Enabled:=false;
     gbIST8310.Enabled:=false;
     gbMPU6050.Enabled:=false;
-    gbAS5.Enabled:=false;
+    btnAS5Reg.Enabled:=false;
     knDac.Enabled:=false;
     lblAS5.Caption:='';
     tsADC.Enabled:=false;
@@ -535,6 +608,7 @@ begin
           gbMPU6050.Enabled:=true;
           TimerIST.Enabled:=false;
           TimerHMC.Enabled:=false;
+          TimerAS5.Enabled:=false;
           MPURegHdr;
           lblTemp.Caption:=TempToStr;
           btnMPURead.Enabled:=true;
@@ -546,6 +620,7 @@ begin
 
         if (rgMag.ItemIndex=1) and (pos(ISTadr, cgSensors.Items[k])>0) and GetAdrStrIST then begin
           TimerMPU.Enabled:=false;
+          TimerAS5.Enabled:=false;
           TimerHMC.Enabled:=false;
           ISTRegHdr;
           SetReg(ISTAdr, 10, 1);                   {Single measurement mode for temp}
@@ -561,6 +636,7 @@ begin
 
         if (rgMag.ItemIndex=0) and (pos(HMCadr, cgSensors.Items[k])>0) and GetAdrStrHMC then begin
           TimerMPU.Enabled:=false;
+          TimerAS5.Enabled:=false;
           TimerIST.Enabled:=false;
           HMCRegHdr;
           btnISTRead.Enabled:=true;
@@ -572,10 +648,11 @@ begin
           Continue;
         end;
 
-        if (pos(AS5adr, cgSensors.Items[k])>0) and GetAdrStrAS5 then begin                  {Rotary sensor}
+        if (pos(AS5adr, cgSensors.Items[k])>0) and GetAdrStrAS5 then begin  {Rotary sensor}
           Caption:=Caption+tab1+AdrToChip(AS5adr);
-          gbAS5.Enabled:=true;
+          btnAS5Reg.Enabled:=true;
           lblAS5.Caption:=AS5adr;
+          PageControl.ActivePage:=tsAS5600;
           Continue;
         end;
 
@@ -587,6 +664,7 @@ begin
             SetVolt(0);
             Caption:=Caption+tab1+AdrToChip(ADCadr);
             tsADC.Enabled:=true;
+            PageControl.ActivePage:=tsADC;
             break;
           end;
         end;
@@ -609,6 +687,28 @@ begin
   Caption:=AppHdr+tab1+intfac;                     {Init, try sensors}
   DACValHdr;                                       {DAC header for value dump}
   UsedChip:=0;                                     {UsedChip: 0 - undef}
+  lblMstat.Caption:=capMStat;
+  lblMStat.Hint:=hntMStat;
+  btnBurnCali.Hint:=hntBurnA+hntBurn+hntBurn1;
+  btnBurnCONF.Hint:=hntBurnC+hntBurn+hntBurn1;
+  lblBurnC.Caption:=hntBurn;
+  ConfHints;
+  gridCali.Cells[0, 0]:='Reg';
+  gridCali.Cells[1, 0]:='High';
+  gridCali.Cells[2, 0]:='Low';
+  gridCali.Cells[0, 1]:='Raw Angle';
+  gridCali.Cells[0, 2]:='Zero Pos';
+  gridCali.Cells[0, 3]:='Max Pos';
+  gbConf.Enabled:=false;
+  gbCali.Enabled:=false;
+  gbCali.Hint:=hntCali;
+  gridCali.Hint:='';
+end;
+
+procedure TForm1.FormActivate(Sender: TObject);
+begin
+  ReadSensors;                                     {Create a list of available sensors}
+  RefreshSensor;
 end;
 
 procedure TForm1.gridADCMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
@@ -633,12 +733,19 @@ begin
       gridADC.Hint:=gridADC.Cells[sp, zl];
     end else begin
       case sp of
-        1: gridADC.Hint:='$'+gridADC.Cells[sp, zl];
+        1: gridADC.Hint:=hexid+gridADC.Cells[sp, zl];
         2: gridADC.Hint:=gridADC.Cells[sp, zl];
         3: gridADC.Hint:=gridADC.Cells[sp, zl]+' V';
       end;
     end;
   end;
+end;
+
+procedure TForm1.gridCaliPrepareCanvas(sender: TObject; aCol, aRow: Integer;
+  aState: TGridDrawState);
+begin
+  if (aCol=0) and ((aRow=2) or (aRow=3)) then
+    gridCali.Canvas.Brush.Color:=clRW;
 end;
 
 procedure TForm1.gridRegPrepareCanvas(sender: TObject; aCol, aRow: Integer;
@@ -660,6 +767,7 @@ begin
       1: if r in rwregs then gridReg.Canvas.Brush.Color:=clRW;
       2: if r in rwHMC  then gridReg.Canvas.Brush.Color:=clRW;
       3: if r in rwIST  then gridReg.Canvas.Brush.Color:=clRW;
+      4: if r in rwpAS5 then gridReg.Canvas.Brush.Color:=clRW;
     end;
   end;
 end;
@@ -719,12 +827,14 @@ procedure TForm1.SetTimer;
 begin
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
+  TimerAS5.Enabled:=false;
   TimerHMC.Enabled:=false;
   TimerADC.Enabled:=false;
   TimerMPU.Interval:=StrToInt(rgMPUTimer.Items[rgMPUTimer.ItemIndex]);
   TimerIST.Interval:=StrToInt(rgISTTimer.Items[rgISTTimer.ItemIndex]);
   TimerHMC.Interval:=StrToInt(rgISTTimer.Items[rgISTTimer.ItemIndex]);
   TimerADC.Interval:=StrToInt(rgISTTimer.Items[rgISTTimer.ItemIndex]);
+  TimerAS5.Interval:=StrToInt(rgISTTimer.Items[rgISTTimer.ItemIndex]);
 end;
 
 procedure TForm1.rgISTtimerClick(Sender: TObject);
@@ -782,6 +892,11 @@ begin
     samples:=0;
 end;
 
+procedure TForm1.TimerAS5Timer(Sender: TObject);
+begin
+  ReadAS5ro;                                       {Read As5600 output register}
+end;
+
 procedure TForm1.TimerHMCTimer(Sender: TObject);
 var
   w: int16;
@@ -835,6 +950,7 @@ begin
 
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
+  TimerAS5.Enabled:=false;
   TimerHMC.Enabled:=false;
   btnWriteTable.Enabled:=true;
   MPURegHdr;
@@ -912,6 +1028,15 @@ begin
   lblChipAdr.Caption:=UsedChipToAdr(UsedChip);
 end;
 
+procedure TForm1.btnOTPClick(Sender: TObject);
+begin
+  SetReg(AS5adr, $FF, $01);
+  SetReg(AS5adr, $FF, $11);
+  SetReg(AS5adr, $FF, $10);
+  sleep(5);
+  ReadAS5600Reg;
+end;
+
 procedure TForm1.btnMPUcycClick(Sender: TObject);  {Start reading values}
 begin
   UsedChip:=1;
@@ -922,6 +1047,7 @@ begin
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
   TimerHMC.Enabled:=false;
+  TimerAS5.Enabled:=false;
   btnWriteTable.Enabled:=false;
   btnWrAdr.Enabled:=false;
   fs_sel:=GetFS_SEL;                               {Gyro Scale 0..3}
@@ -1201,17 +1327,121 @@ begin
   Close;
 end;
 
-procedure TForm1.btnAS5RegClick(Sender: TObject);  {AS5600 register only}
+procedure TForm1.btnReadCONFClick(Sender: TObject);
+begin
+  ReadAS5600Reg;
+end;
+
+procedure TForm1.btnReadCyclClick(Sender: TObject);  {Cyclic read AS5600 read-Only register}
+begin
+  TimerAS5.Enabled:=true;
+  PageControl.ActivePage:=tsTable;
+end;
+
+procedure TForm1.btnAS5RegClick(Sender: TObject);    {AS5600 read register to table}
+begin
+  PageControl.ActivePage:=tsTable;
+  ReadAS5600Reg;
+end;
+
+procedure TForm1.btnBurnCaliClick(Sender: TObject);  {Burn_Angle command}
+begin
+  SetReg(AS5adr, $FF, $80);
+end;
+
+function SetHintCB (cb: TComboBox; defaulthint: string=''): string;
+begin
+  if cb.ItemIndex<0 then
+    result:=defaulthint
+  else
+    result:=cb.Items[cb.ItemIndex];
+end;
+
+function TForm1.ConvAngle(d: integer): string;       {Conversion Maximum Angle to °}
+var
+  w: single;
+begin
+  if d=0 then
+    exit ('360°');                                   {?????? not scaled?}
+  w:=d*360/4095;
+  if w<18 then begin                                 {must be greater than 18° ($CD)}
+    result:='invalid';
+    btnBurnCONF.Enabled:=false;
+  end else begin
+    result:=FormatFloat('0.0', w)+'°';
+    btnBurnCONF.Enabled:=true;
+  end;
+end;
+
+procedure TForm1.ConfHints;
+begin
+  cbPM.Hint:=SetHintCB(cbPM, 'Power Mode');
+  cbHYST.Hint:='Hysteresis';
+  cbOUTS.Hint:=SetHintCB(cbOUTS, 'Output Stage');
+  cbPWMF.Hint:=SetHintCB(cbPWMF, 'PWM Frequency');
+  cbSF.Hint:='Slow Filter';
+  cbFTH.Hint:=SetHintCB(cbFTH, 'Fast Filter Threshold');
+  cbWD.Hint:='Watchdog';
+end;
+
+procedure TForm1.btnBurnCONFClick(Sender: TObject);    {Burn_Setting command}
+begin
+  SetReg(AS5adr, $FF, $40);
+end;
+
+procedure TForm1.FillMANGD(Sender: TObject);           {Show Maximum Angle}
+var
+  v: integer;
+
+begin
+  v:=0;
+  if edMANGL.Text<>'' then begin
+    v:=StrToInt(hexid+edMANGL.Text) and 255;
+  end;
+  if edMANGH.Text<>'' then begin
+    v:=(StrToInt(hexid+edMANGH.Text) and 15)*256+v;
+  end;
+  edMANGD.Text:=ConvAngle(v);
+end;
+
+procedure TForm1.ReadAS5ro;                        {Read As5600 output register}
+var
+  i, x, raw, ang: integer;
+  b: byte;
+
+begin
+  for i:=12 to 15 do begin                         {Output registers}
+    b:=GetReg(AS5adr, i);
+    x:=i-2;
+    gridReg.Cells[1, x]:=IntToHex(i, 2);
+    gridReg.Cells[2, x]:=Format(df, [i]);
+    gridReg.Cells[4, x]:=IntToBin(b, 8);
+    gridReg.Cells[5, x]:=IntToHex(b, 2);
+    gridReg.Cells[6, x]:=Format(df, [b]);
+    case x of
+      10: raw:=(b and 15) *256;                    {Raw high}
+      11: raw:=raw+b;
+      12: ang:=(b and 15) *256;
+      13: ang:=ang+b;
+    end;
+  end;
+  gridCali.Cells[1, 1]:=gridReg.Cells[5, 10];      {Raw Angle, needed for calibration}
+  gridCali.Cells[2, 1]:=gridReg.Cells[5, 11];
+  slAng.Value:=ang;
+  slRaw.Value:=raw;
+end;
+
+// More: https://github.com/RobTillaart/AS5600
+procedure TForm1.ReadAS5600Reg;  {AS5600 register only}
 var
   i, b, x: byte;
 
 begin
   UsedChip:=4;
-  PageControl.ActivePage:=tsTable;
   lblChipAdr.Caption:=UsedChipToAdr(UsedChip);
   gridReg.RowCount:=19;
   CommonRegHdr;
-  gridReg.Cells[0, 1]:='Conf ZMO';
+  gridReg.Cells[0, 1]:='Conf ZMCO';
   gridReg.Cells[0, 2]:='Conf ZPOS_H';
   gridReg.Cells[0, 3]:='Conf ZPOS_L';
   gridReg.Cells[0, 4]:='Conf MPOS_H';
@@ -1230,30 +1460,69 @@ begin
   gridReg.Cells[0, 17]:='MAGNITUDE_L';
   gridReg.Cells[0, 18]:='BURN';                    {Burn_Angle=$80, Burn_Setting=$40}
 
-  for i:=0 to 8 do begin
+  for i:=0 to 6 do begin
     b:=GetReg(AS5adr, i);                          {Configuration registers}
     x:=i+1;
-    gridReg.Cells[1, x]:=IntToHex(i, 2);
-    gridReg.Cells[2, x]:=Format(df, [i]);
-    gridReg.Cells[4, x]:=IntToBin(b, 8);
-    gridReg.Cells[5, x]:=IntToHex(b, 2);
-    gridReg.Cells[6, x]:=Format(df, [b]);
+    gridReg.Cells[1, x]:=IntToHex(i, 2);           {Addr hex}
+    gridReg.Cells[2, x]:=Format(df, [i]);          {Addr dec}
+    gridReg.Cells[4, x]:=IntToBin(b, 8);           {Value bin}
+    gridReg.Cells[5, x]:=IntToHex(b, 2);           {Value hex}
+    gridReg.Cells[6, x]:=Format(df, [b]);          {Value dec}
   end;
-  for i:=12 to 15 do begin                         {Output registers}
-    b:=GetReg(AS5adr, i);
-    x:=i-2;
-    gridReg.Cells[1, x]:=IntToHex(i, 2);
-    gridReg.Cells[2, x]:=Format(df, [i]);
-    gridReg.Cells[4, x]:=IntToBin(b, 8);
-    gridReg.Cells[5, x]:=IntToHex(b, 2);
-    gridReg.Cells[6, x]:=Format(df, [b]);
-  end;
+
+  gridCali.Cells[1, 2]:=gridReg.Cells[5, 2];       {ZPOS}
+  gridCali.Cells[2, 2]:=gridReg.Cells[5, 3];
+  gridCali.Cells[1, 3]:=gridReg.Cells[5, 4];       {MPOS}
+  gridCali.Cells[2, 3]:=gridReg.Cells[5, 5];
+
+  edMANGH.Text:=gridReg.Cells[5, 5];               {Maximum Angle}
+//  edMangH.Tag:=StrToInt(hexid+gridReg.Cells[5, 5]) and 15;
+  edMANGL.Text:=gridReg.Cells[5, 6];
+//  edMANGL.Tag:=b;                                  {Tags keep the original values from Read}
+
+  b:=GetReg(AS5adr, 7);                            {CONF_H}
+  gridReg.Cells[1, 8]:='07';                       {Addr hex}
+  gridReg.Cells[2, 8]:=gridReg.Cells[1, 8];        {Addr dec}
+  gridReg.Cells[4, 8]:=IntToBin(b, 8);             {Value bin}
+  gridReg.Cells[5, 8]:=IntToHex(b, 2);             {Value hex}
+  gridReg.Cells[6, 8]:=Format(df, [b]);            {Value dec}
+
+  cbSF.ItemIndex:=b and 3;                         {Set controls for programming (CONF high)}
+  b:=b shr 2;
+  cbFTH.ItemIndex:=b and 7;
+  b:=b shr 3;
+  cbWD.ItemIndex:=b and 1;
+
+  b:=GetReg(AS5adr, 8);                            {CONF_L}
+  gridReg.Cells[1, 9]:='08';                       {Addr hex}
+  gridReg.Cells[2, 9]:=gridReg.Cells[1, 9];        {Addr dec}
+  gridReg.Cells[4, 9]:=IntToBin(b, 8);             {Value bin}
+  gridReg.Cells[5, 9]:=IntToHex(b, 2);             {Value hex}
+  gridReg.Cells[6, 9]:=Format(df, [b]);            {Value dec}
+
+  cbPM.ItemIndex:=b and 3;                         {Set controls for programming (CONF low)}
+  b:=b shr 2;
+  cbHYST.ItemIndex:=b and 3;
+  b:=b shr 2;
+  cbOUTS.ItemIndex:=b and 3;
+  b:=b shr 2;
+  cbPWMF.ItemIndex:=b and 3;
+
+  ReadAS5ro;
+
   b:=GetReg(AS5adr, 11);                           {Status registers}
   gridReg.Cells[1, 14]:='0B';
   gridReg.Cells[2, 14]:='11';
   gridReg.Cells[4, 14]:=IntToBin(b, 8);
   gridReg.Cells[5, 14]:=IntToHex(b, 2);
   gridReg.Cells[6, 14]:=Format(df, [b]);
+  if (b and 56)=32 then begin                      {Check status bits}
+    lblMStat.Caption:=capMStat+' OK';
+  end;
+  cbMH.Checked:=(b and 8) > 0;                     {AGC minimum gain overflow, magnet too strong}
+  cbML.Checked:=(b and 16) > 0;                    {AGC maximum gain overflow, magnet too weak}
+  cbMD.Checked:=(b and 32) > 0;                    {Magnet was detected}
+
   for i:=26 to 28 do begin                         {AGC, Magnitude}
     b:=GetReg(AS5adr, i);
     x:=i-11;
@@ -1263,12 +1532,17 @@ begin
     gridReg.Cells[5, x]:=IntToHex(b, 2);
     gridReg.Cells[6, x]:=Format(df, [b]);
   end;
+
   b:=GetReg(AS5adr, 255);                          {Burn_Angle=$80, Burn_Setting=$40}
   gridReg.Cells[1, 18]:='FF';
   gridReg.Cells[2, 18]:='255';
   gridReg.Cells[4, 18]:=IntToBin(b, 8);
   gridReg.Cells[5, 18]:=IntToHex(b, 2);
   gridReg.Cells[6, 18]:=Format(df, [b]);
+
+  gbConf.Enabled:=true;
+  gbCali.Enabled:=true;
+  ConfHints;
 end;
 
 procedure TForm1.ADCstop;                          {Stop cyclic measuremen}
@@ -1315,6 +1589,7 @@ begin
   btnWriteTable.Enabled:=true;
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
+  TimerAS5.Enabled:=false;
   TimerHMC.Enabled:=false;
   ADCstop;
   PageControl.ActivePage:=tsTable;
@@ -1395,6 +1670,7 @@ begin
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
   TimerHMC.Enabled:=false;
+  TimerAS5.Enabled:=false;
   btnWriteTable.Enabled:=false;
   btnWrAdr.Enabled:=false;
   ADCstop;
@@ -1467,6 +1743,7 @@ begin
   lblChipAdr.Caption:=UsedChipToAdr(UsedChip);
   if btnMPUread.Enabled then begin
     TimerIST.Enabled:=false;
+    TimerAS5.Enabled:=false;
     TimerHMC.Enabled:=false;
     btnWriteTable.Enabled:=false;
     btnWrAdr.Enabled:=false;
@@ -1479,6 +1756,26 @@ begin
     TimerMPU.Enabled:=true;
     lblAS5.Caption:='';
   end;
+end;
+
+procedure TForm1.btnSetMaxClick(Sender: TObject);
+begin
+  ReadAS5ro;                                       {Read AS5600 output register}
+  gridCali.Cells[1, 3]:=gridCali.Cells[1, 1];
+  SetReg(AS5adr, 3, StrToInt(hexid+gridCali.Cells[1, 3]) and 15);  {High}
+  sleep(5);
+  gridCali.Cells[2, 3]:=gridCali.Cells[2, 1];
+  SetReg(AS5adr, 4, StrToInt(hexid+gridCali.Cells[2, 3]));         {low}
+end;
+
+procedure TForm1.btnSetZeroClick(Sender: TObject);
+begin
+  ReadAS5ro;                                       {Read AS5600 output register}
+  gridCali.Cells[1, 2]:=gridCali.Cells[1, 1];
+  SetReg(AS5adr, 1, StrToInt(hexid+gridCali.Cells[1, 2]) and 15);  {High}
+  sleep(5);
+  gridCali.Cells[2, 2]:=gridCali.Cells[2, 1];
+  SetReg(AS5adr, 2, StrToInt(hexid+gridCali.Cells[2, 2]));         {low}
 end;
 
 procedure TForm1.btnSinusClick(Sender: TObject);
@@ -1494,6 +1791,7 @@ begin
   TimerIST.Enabled:=false;
   TimerHMC.Enabled:=false;
   TimerST.Enabled:=false;                          {Self test timer}
+  TimerAS5.Enabled:=false;
   btnWrAdr.Enabled:=true;
   ADCstop;
   RefreshSensor;
@@ -1567,6 +1865,29 @@ begin
   lblError.Caption:=IntToStr(btnWrAdr.Tag)+' written to '+IntToStr(a);
 end;
 
+procedure TForm1.btnWriteCONFClick(Sender: TObject);
+var
+  b: byte;
+
+begin
+  b:=cbWD.ItemIndex;                               {CONF High}
+  b:=b shl 3;
+  b:=b or cbFTH.ItemIndex;
+  b:=b shl 2;
+  b:=b or cbSF.ItemIndex;
+  SetReg(AS5adr, 7, (b and 63));
+  sleep(5);
+
+  b:=cbPWMF.ItemIndex;                             {CONF low}
+  b:=b shl 2;
+  b:=b or cbOUTS.ItemIndex;
+  b:=b shl 2;
+  b:=b or cbHYST.ItemIndex;
+  b:=b shl 2;
+  b:=b or cbPM.ItemIndex;
+  SetReg(AS5adr, 8, b);
+end;
+
 procedure TForm1.btnWriteTableClick(Sender: TObject);
 var
   b: byte;
@@ -1632,6 +1953,7 @@ var
 begin
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
+  TimerAS5.Enabled:=false;
   TimerHMC.Enabled:=false;
   case UsedChip of
     1: wrMPU;                                      {MPU6050}
@@ -1708,6 +2030,7 @@ begin
   btnWriteTable.Enabled:=false;
   TimerMPU.Enabled:=false;
   TimerIST.Enabled:=false;
+  TimerAS5.Enabled:=false;
   TimerHMC.Enabled:=false;
 
   case UsedChip of
@@ -1736,12 +2059,6 @@ begin
   btnWrAdr.Tag:=StrToIntDef(s, 0) and $FF;
   lblHex.Caption:=hexidc+IntToHex(btnWrAdr.Tag, 2);
   lblBin.Caption:=IntToBin(btnWrAdr.Tag, 8);
-end;
-
-procedure TForm1.FormActivate(Sender: TObject);
-begin
-  ReadSensors;                                     {Create a list of available sensors}
-  RefreshSensor;
 end;
 
 end.

@@ -1,12 +1,12 @@
 object Form1: TForm1
-  Left = 1078
-  Height = 582
-  Top = 159
-  Width = 840
+  Left = 915
+  Height = 596
+  Top = 146
+  Width = 914
   Caption = 'Form1'
-  ClientHeight = 582
-  ClientWidth = 840
-  Constraints.MinHeight = 360
+  ClientHeight = 596
+  ClientWidth = 914
+  Constraints.MinHeight = 560
   Constraints.MinWidth = 840
   KeyPreview = True
   OnActivate = FormActivate
@@ -36,7 +36,7 @@ object Form1: TForm1
     TabOrder = 3
   end
   object btnSave: TButton
-    Left = 577
+    Left = 651
     Height = 25
     Hint = 'Save table to CSV file'
     Top = 16
@@ -67,7 +67,7 @@ object Form1: TForm1
     TabOrder = 2
   end
   object btnClose: TButton
-    Left = 713
+    Left = 787
     Height = 25
     Hint = 'Close program'
     Top = 16
@@ -98,23 +98,23 @@ object Form1: TForm1
   end
   object PageControl: TPageControl
     Left = 16
-    Height = 494
+    Height = 508
     Top = 80
-    Width = 817
-    ActivePage = tsTools
+    Width = 891
+    ActivePage = tsAS5600
     Anchors = [akTop, akLeft, akRight, akBottom]
     TabIndex = 5
     TabOrder = 6
     OnChange = PageControlChange
     object tsTable: TTabSheet
       Caption = 'Table'
-      ClientHeight = 446
-      ClientWidth = 807
+      ClientHeight = 460
+      ClientWidth = 881
       object gridReg: TStringGrid
         Left = 0
-        Height = 446
+        Height = 460
         Top = 0
-        Width = 807
+        Width = 881
         Align = alClient
         ColCount = 7
         Flat = True
@@ -136,13 +136,13 @@ object Form1: TForm1
     end
     object tsChartA: TTabSheet
       Caption = 'Chart Accel'
-      ClientHeight = 446
-      ClientWidth = 807
+      ClientHeight = 460
+      ClientWidth = 881
       object chAcc: TChart
         Left = 0
-        Height = 446
+        Height = 460
         Top = 0
-        Width = 807
+        Width = 881
         AxisList = <        
           item
             Marks.LabelBrush.Style = bsClear
@@ -181,13 +181,13 @@ object Form1: TForm1
     end
     object tsChartG: TTabSheet
       Caption = 'Chart Gyro'
-      ClientHeight = 446
-      ClientWidth = 807
+      ClientHeight = 460
+      ClientWidth = 881
       object chGyro: TChart
         Left = 0
-        Height = 446
+        Height = 460
         Top = 0
-        Width = 807
+        Width = 881
         AxisList = <        
           item
             Marks.LabelBrush.Style = bsClear
@@ -226,13 +226,13 @@ object Form1: TForm1
     end
     object tsMag: TTabSheet
       Caption = 'Chart Mag'
-      ClientHeight = 446
-      ClientWidth = 807
+      ClientHeight = 460
+      ClientWidth = 881
       object chMag: TChart
         Left = 0
-        Height = 446
+        Height = 460
         Top = 0
-        Width = 807
+        Width = 881
         AxisList = <        
           item
             Marks.LabelBrush.Style = bsClear
@@ -272,8 +272,8 @@ object Form1: TForm1
     object tsADC: TTabSheet
       AutoSize = True
       Caption = 'ADC PCF8591'
-      ClientHeight = 446
-      ClientWidth = 807
+      ClientHeight = 460
+      ClientWidth = 881
       object gridADC: TStringGrid
         Left = 0
         Height = 184
@@ -302,9 +302,9 @@ object Form1: TForm1
       end
       object chADC: TChart
         Left = 4
-        Height = 248
+        Height = 262
         Top = 192
-        Width = 805
+        Width = 879
         AxisList = <        
           item
             Marks.LabelBrush.Style = bsClear
@@ -414,17 +414,482 @@ object Form1: TForm1
         TabOrder = 7
       end
     end
+    object tsAS5600: TTabSheet
+      Caption = 'AS5600'
+      ClientHeight = 460
+      ClientWidth = 881
+      object btnAS5Reg: TButton
+        Left = 16
+        Height = 25
+        Hint = 'Read all register from AS5600 and jump to Table'
+        Top = 56
+        Width = 112
+        Caption = 'AS5600 Reg'
+        OnClick = btnAS5RegClick
+        TabOrder = 0
+      end
+      object lblAS5: TLabel
+        Left = 16
+        Height = 22
+        Top = 24
+        Width = 46
+        Caption = 'lblAS5'
+        ParentColor = False
+      end
+      object gbConf: TGroupBox
+        Left = 144
+        Height = 408
+        Top = 24
+        Width = 304
+        Caption = 'Configuration'
+        ClientHeight = 385
+        ClientWidth = 302
+        TabOrder = 1
+        object cbPM: TComboBox
+          Left = 169
+          Height = 31
+          Top = 9
+          Width = 123
+          ItemHeight = 0
+          Items.Strings = (
+            'NOM'
+            'LPM1'
+            'LPM2'
+            'LPM3'
+          )
+          TabOrder = 0
+          Text = 'PM'
+          TextHint = 'PM'
+        end
+        object lblPM: TLabel
+          Left = 8
+          Height = 22
+          Top = 16
+          Width = 88
+          Caption = 'Power Mode'
+          ParentColor = False
+        end
+        object lblHYST: TLabel
+          Left = 8
+          Height = 22
+          Top = 48
+          Width = 73
+          Caption = 'Hysteresis'
+          ParentColor = False
+        end
+        object cbHYST: TComboBox
+          Left = 169
+          Height = 31
+          Top = 41
+          Width = 122
+          ItemHeight = 0
+          Items.Strings = (
+            'OFF'
+            '1 LSB'
+            '2 LSBs'
+            '3 LSBs'
+          )
+          TabOrder = 1
+          Text = 'HYST'
+          TextHint = 'HYST'
+        end
+        object lblOUTS: TLabel
+          Left = 8
+          Height = 22
+          Top = 80
+          Width = 93
+          Caption = 'Output Stage'
+          ParentColor = False
+        end
+        object lblPWMF: TLabel
+          Left = 8
+          Height = 22
+          Top = 112
+          Width = 110
+          Caption = 'PWM Fequency'
+          ParentColor = False
+        end
+        object cbOUTS: TComboBox
+          Left = 169
+          Height = 31
+          Top = 71
+          Width = 122
+          ItemHeight = 0
+          Items.Strings = (
+            'analog (full range from 0% to 100% between GND and VDD)'
+            'analog (reduced range from 10% to 90% between GND and VDD)'
+            'digital PWM'
+            'n/a'
+          )
+          TabOrder = 2
+          Text = 'OUTS'
+          TextHint = 'OUTS'
+        end
+        object cbPWMF: TComboBox
+          Left = 169
+          Height = 31
+          Top = 105
+          Width = 122
+          ItemHeight = 0
+          Items.Strings = (
+            '115Hz'
+            '230Hz'
+            '460Hz'
+            '920Hz'
+          )
+          TabOrder = 3
+          Text = 'PWMF'
+          TextHint = 'PWMF'
+        end
+        object cbSF: TComboBox
+          Left = 169
+          Height = 31
+          Top = 137
+          Width = 122
+          ItemHeight = 0
+          Items.Strings = (
+            '16x'
+            '8x'
+            '4x'
+            '2x'
+          )
+          TabOrder = 4
+          Text = 'SF'
+          TextHint = 'SF'
+        end
+        object cbFTH: TComboBox
+          Left = 169
+          Height = 31
+          Top = 169
+          Width = 122
+          ItemHeight = 0
+          Items.Strings = (
+            'slow filter only'
+            '6 LSBs'
+            '7 LSBs'
+            '9 LSBs'
+            '18 LSBs'
+            '21 LSBs'
+            '24 LSBs'
+            '10 LSBs'
+          )
+          TabOrder = 5
+          Text = 'FTH'
+          TextHint = 'FTH'
+        end
+        object cbWD: TComboBox
+          Left = 169
+          Height = 31
+          Top = 201
+          Width = 122
+          ItemHeight = 0
+          Items.Strings = (
+            'OFF'
+            'ON'
+          )
+          TabOrder = 6
+          Text = 'WD'
+          TextHint = 'WD'
+        end
+        object lblSF: TLabel
+          Left = 8
+          Height = 22
+          Top = 144
+          Width = 74
+          Caption = 'Slow Filter'
+          ParentColor = False
+        end
+        object lblFTH: TLabel
+          Left = 8
+          Height = 22
+          Top = 176
+          Width = 145
+          Caption = 'Fast Filter Threshold'
+          ParentColor = False
+        end
+        object lblWD: TLabel
+          Left = 8
+          Height = 22
+          Top = 208
+          Width = 72
+          Caption = 'Watchdog'
+          ParentColor = False
+        end
+        object pnlRed: TPanel
+          Left = 0
+          Height = 46
+          Top = 330
+          Width = 90
+          ClientHeight = 46
+          ClientWidth = 90
+          Color = clRed
+          ParentColor = False
+          TabOrder = 7
+          object btnBurnCONF: TButton
+            Left = 8
+            Height = 25
+            Top = 10
+            Width = 74
+            Caption = 'Burn C'
+            OnClick = btnBurnCONFClick
+            TabOrder = 0
+          end
+        end
+        object edMANGH: TEdit
+          Left = 169
+          Height = 31
+          Hint = 'Maximum Angle hex high'
+          Top = 304
+          Width = 56
+          OnChange = FillMANGD
+          TabOrder = 8
+          TextHint = 'high'
+        end
+        object edMANGL: TEdit
+          Left = 235
+          Height = 31
+          Hint = 'Maximum Angle hex low'
+          Top = 304
+          Width = 56
+          OnChange = FillMANGD
+          TabOrder = 9
+          TextHint = 'low'
+        end
+        object edMANGD: TEdit
+          Left = 169
+          Height = 31
+          Hint = 'Maximum Angle decimal (read-only), must be >18° (18°=$CD)'
+          Top = 345
+          Width = 122
+          Color = clSkyBlue
+          ReadOnly = True
+          TabOrder = 10
+          TextHint = 'decimal'
+        end
+        object lblMANG: TLabel
+          Left = 169
+          Height = 22
+          Top = 248
+          Width = 116
+          Caption = 'Maximum Angle'
+          ParentColor = False
+        end
+        object lblHexHigh: TLabel
+          Left = 169
+          Height = 22
+          Top = 273
+          Width = 64
+          Caption = 'Hex High'
+          ParentColor = False
+        end
+        object lblHexLow: TLabel
+          Left = 235
+          Height = 22
+          Top = 273
+          Width = 60
+          Caption = 'Hex Low'
+          ParentColor = False
+        end
+        object btnWriteCONF: TButton
+          Left = 8
+          Height = 25
+          Hint = 'Write configuration to register'
+          Top = 248
+          Width = 74
+          Caption = 'Write'
+          OnClick = btnWriteCONFClick
+          TabOrder = 11
+        end
+        object lblBurnC: TLabel
+          Left = 11
+          Height = 22
+          Top = 304
+          Width = 60
+          Caption = 'lblBurnC'
+          ParentColor = False
+        end
+      end
+      object cbMH: TCheckBox
+        Left = 16
+        Height = 26
+        Hint = 'AGC minimum gain overflow, magnet too strong'
+        Top = 184
+        Width = 53
+        Caption = 'MH'
+        TabOrder = 2
+      end
+      object lblMstat: TLabel
+        Left = 16
+        Height = 22
+        Top = 160
+        Width = 58
+        Caption = 'lblMstat'
+        ParentColor = False
+      end
+      object cbML: TCheckBox
+        Left = 16
+        Height = 26
+        Hint = 'AGC maximum gain overflow, magnet too weak'
+        Top = 216
+        Width = 50
+        Caption = 'ML'
+        TabOrder = 3
+      end
+      object cbMD: TCheckBox
+        Left = 16
+        Height = 26
+        Hint = 'Magnet was detected'
+        Top = 248
+        Width = 53
+        Caption = 'MD'
+        TabOrder = 4
+      end
+      object gbCali: TGroupBox
+        Left = 464
+        Height = 408
+        Top = 24
+        Width = 256
+        Caption = 'Calibration'
+        ClientHeight = 385
+        ClientWidth = 254
+        TabOrder = 5
+        object gridCali: TStringGrid
+          Left = 8
+          Height = 120
+          Top = 8
+          Width = 240
+          ColCount = 3
+          RowCount = 4
+          ScrollBars = ssNone
+          TabOrder = 0
+          OnPrepareCanvas = gridCaliPrepareCanvas
+          ColWidths = (
+            106
+            64
+            64
+          )
+        end
+        object btnSetZero: TButton
+          Left = 8
+          Height = 25
+          Top = 168
+          Width = 142
+          Caption = '2. Set Zero Pos'
+          OnClick = btnSetZeroClick
+          TabOrder = 1
+        end
+        object btnSetMax: TButton
+          Left = 8
+          Height = 25
+          Top = 240
+          Width = 142
+          Caption = '4. Set Max Pos'
+          OnClick = btnSetMaxClick
+          TabOrder = 2
+        end
+        object pnlRed1: TPanel
+          Left = 8
+          Height = 50
+          Top = 272
+          Width = 142
+          ClientHeight = 50
+          ClientWidth = 142
+          Color = clRed
+          ParentColor = False
+          TabOrder = 3
+          object btnBurnCali: TButton
+            Left = 8
+            Height = 25
+            Top = 12
+            Width = 126
+            Caption = '5. Burn A'
+            OnClick = btnBurnCaliClick
+            TabOrder = 0
+          end
+        end
+        object lblMoveZ: TLabel
+          Left = 8
+          Height = 22
+          Top = 136
+          Width = 223
+          Caption = '1. Turn magnet to start position'
+          ParentColor = False
+        end
+        object lblMoveM: TLabel
+          Left = 8
+          Height = 22
+          Top = 208
+          Width = 236
+          Caption = '3. Rotate magnet to stop position'
+          ParentColor = False
+        end
+        object btnOTP: TButton
+          Left = 8
+          Height = 25
+          Top = 336
+          Width = 142
+          Caption = '6. Read OTP'
+          OnClick = btnOTPClick
+          TabOrder = 4
+        end
+      end
+      object btnReadCONF: TButton
+        Left = 16
+        Height = 25
+        Hint = 'Read register'
+        Top = 392
+        Width = 112
+        Caption = 'Read CONF'
+        OnClick = btnReadCONFClick
+        TabOrder = 6
+      end
+      object btnReadCycl: TButton
+        Left = 16
+        Height = 25
+        Top = 112
+        Width = 112
+        Caption = 'AS5600 Cyc'
+        OnClick = btnReadCyclClick
+        TabOrder = 7
+      end
+      object slRaw: TindGnouMeter
+        Left = 728
+        Height = 408
+        Hint = 'Raw Angle'
+        Top = 24
+        Width = 72
+        Caption = 'Raw'
+        ShowHint = True
+        ValueMax = 4095
+        Digits = 0
+        Increment = 256
+        GapTop = 10
+        MarkerColor = clBlue
+      end
+      object slAng: TindGnouMeter
+        Left = 808
+        Height = 408
+        Top = 24
+        Width = 72
+        Caption = 'Ang'
+        ValueMax = 4095
+        Digits = 0
+        Increment = 256
+        GapTop = 10
+        MarkerColor = clBlue
+      end
+    end
     object tsTools: TTabSheet
       Caption = 'Tools/Settings'
-      ClientHeight = 446
-      ClientWidth = 807
+      ClientHeight = 460
+      ClientWidth = 881
       object gbWrReg: TGroupBox
         Left = 16
         Height = 225
         Top = 8
         Width = 288
         Caption = 'Overwrite register'
-        ClientHeight = 202
+        ClientHeight = 223
         ClientWidth = 286
         TabOrder = 0
         object btnWrAdr: TButton
@@ -573,7 +1038,7 @@ object Form1: TForm1
         Top = 136
         Width = 288
         Caption = 'MPU6050 options'
-        ClientHeight = 74
+        ClientHeight = 95
         ClientWidth = 286
         TabOrder = 2
         object btnAddSlave: TButton
@@ -678,7 +1143,7 @@ object Form1: TForm1
         Top = 240
         Width = 137
         Caption = 'Byte calculator'
-        ClientHeight = 178
+        ClientHeight = 199
         ClientWidth = 135
         TabOrder = 4
         object leDec: TLabeledEdit
@@ -721,34 +1186,6 @@ object Form1: TForm1
           OnKeyUp = leBinKeyUp
         end
       end
-      object gbAS5: TGroupBox
-        Left = 312
-        Height = 113
-        Top = 240
-        Width = 145
-        Caption = 'AS5600'
-        ClientHeight = 90
-        ClientWidth = 143
-        TabOrder = 5
-        object btnAS5Reg: TButton
-          Left = 16
-          Height = 25
-          Hint = 'Read register from AS5600'
-          Top = 8
-          Width = 112
-          Caption = 'AS5600 Reg'
-          OnClick = btnAS5RegClick
-          TabOrder = 0
-        end
-        object lblAS5: TLabel
-          Left = 16
-          Height = 22
-          Top = 48
-          Width = 46
-          Caption = 'lblAS5'
-          ParentColor = False
-        end
-      end
       object gbScan: TGroupBox
         Left = 611
         Height = 225
@@ -757,7 +1194,7 @@ object Form1: TForm1
         Caption = 'Scan sensors'
         ClientHeight = 202
         ClientWidth = 183
-        TabOrder = 6
+        TabOrder = 5
         object btnScan: TButton
           Left = 8
           Height = 25
@@ -790,7 +1227,7 @@ object Form1: TForm1
     end
   end
   object lblTemp: TLabel
-    Left = 709
+    Left = 783
     Height = 22
     Top = 53
     Width = 16
@@ -822,43 +1259,48 @@ object Form1: TForm1
   object SaveDialog: TSaveDialog
     FileName = '1.csv'
     Filter = 'CSV file|*.csv|Text file|*.txt|All files|*.*'
-    Left = 456
-    Top = 88
+    Left = 720
+    Top = 80
   end
   object TimerMPU: TTimer
     Enabled = False
     OnTimer = TimerMPUTimer
-    Left = 504
-    Top = 368
+    Left = 48
+    Top = 352
   end
   object ListChartSource1: TListChartSource
-    Left = 608
+    Left = 776
     Top = 80
   end
   object TimerIST: TTimer
     Enabled = False
     OnTimer = TimerISTTimer
-    Left = 664
-    Top = 376
+    Left = 112
+    Top = 352
   end
   object TimerST: TTimer
     Enabled = False
     Interval = 5000
     OnTimer = TimerSTTimer
-    Left = 507
-    Top = 288
+    Left = 48
+    Top = 496
   end
   object TimerADC: TTimer
     Enabled = False
     Interval = 250
     OnTimer = TimerADCTimer
-    Left = 456
-    Top = 360
+    Left = 112
+    Top = 424
   end
   object TimerHMC: TTimer
     Enabled = False
     OnTimer = TimerHMCTimer
-    Left = 600
-    Top = 373
+    Left = 48
+    Top = 424
+  end
+  object TimerAS5: TTimer
+    OnTimer = TimerAS5Timer
+    Left = 128
+    Top = 496
   end
 end

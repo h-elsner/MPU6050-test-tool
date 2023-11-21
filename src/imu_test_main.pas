@@ -73,7 +73,7 @@ interface
 
 uses
   Classes, SysUtils, Forms, Controls, Graphics, Dialogs, StdCtrls, Grids,
-  ExtCtrls, ComCtrls, MKnob, indGnouMeter, TAGraph, TASources, TASeries,
+  ExtCtrls, ComCtrls, Menus, MKnob, indGnouMeter, TAGraph, TASources, TASeries,
   strutils, mpu_ctrl;
 
 type
